@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a237e" />
+  <meta name="description" content="FinanMM - Classificacao de gastos de cartao via SMS" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FinanMM" />
+  <title>FinanMM - Gastos</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      color: #fff;
+    }
+    .app-header {
+      width: 100%; max-width: 480px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0 16px;
+    }
+    .app-title { font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; }
+    .app-badge { background: #ff6f00; border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; font-weight: 700; }
+    .card {
+      background: #fff; border-radius: 24px; width: 100%; max-width: 480px;
+      padding: 28px 24px; color: #212121; box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 16px;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .estabelecimento { font-size: 1.4rem; font-weight: 700; color: #1a237e; flex: 1; }
+    .valor { font-size: 1.8rem; font-weight: 800; color: #e53935; margin-left: 8px; }
+    .card-meta { font-size: 0.85rem; color: #757575; margin-bottom: 4px; }
+    .card-data {
+      display: flex; gap: 16px; margin-bottom: 20px; padding: 12px 0;
+      border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
+    }
+    .card-data-item { display: flex; flex-direction: column; gap: 2px; }
+    .card-data-label { font-size: 0.7rem; color: #9e9e9e; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-data-value { font-size: 1rem; font-weight: 600; color: #424242; }
+    .progress-text { font-size: 0.8rem; color: #757575; text-align: center; margin-bottom: 16px; }
+    .categorias-title { font-size: 0.85rem; color: #9e9e9e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; text-align: center; }
+    .categorias-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-categoria {
+      padding: 16px 8px; border-radius: 16px; border: 2px solid transparent;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.15s ease;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      min-height: 72px; justify-content: center;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    .btn-categoria:active { transform: scale(0.95); }
+    .btn-categoria .emoji { font-size: 1.5rem; }
+    .btn-categoria.alimentacao { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+    .btn-categoria.transporte  { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
+    .btn-categoria.lazer       { background:#fce4ec; color:#ad1457; border-color:#f48fb1; }
+    .btn-categoria.saude       { background:#f3e5f5; color:#6a1b9a; border-color:#ce93d8; }
+    .btn-categoria.educacao    { background:#fff8e1; color:#f57f17; border-color:#ffe082; }
+    .btn-categoria.casa        { background:#e0f2f1; color:#00695c; border-color:#80cbc4; }
+    .btn-categoria.roupas      { background:#fbe9e7; color:#bf360c; border-color:#ffab91; }
+    .btn-categoria.outros      { background:#f5f5f5; color:#424242; border-color:#bdbdbd; }
+    .btn-categoria:hover { opacity: 0.9; transform: translateY(-1px); }
+    .state-screen {
+      width: 100%; max-width: 480px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px; min-height: 300px;
+    }
+    .state-icon { font-size: 4rem; }
+    .state-title { font-size: 1.4rem; font-weight: 700; text-align: center; }
+    .state-subtitle { font-size: 0.95rem; opacity: 0.8; text-align: center; }
+    .btn-reload {
+      background: #ff6f00; color: #fff; border: none; border-radius: 16px;
+      padding: 16px 32px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-reload:active { transform: scale(0.97); }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #323232; color: #fff; padding: 12px 24px; border-radius: 24px;
+      font-size: 0.9rem; font-weight: 600; transition: transform 0.3s ease; z-index: 999; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { background: #2e7d32; }
+    .toast.error   { background: #c62828; }
+    .btn-notif {
+      background: rgba(255,255,255,0.15); border: none; border-radius: 12px;
+      padding: 8px 12px; color: #fff; font-size: 0.8rem; cursor: pointer; font-weight: 600;
+    }
+    .spinner {
+      width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 32px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">FinanMM</div>
+    <button class="btn-notif" id="btnNotif" onclick="requestNotifPermission()">Notificacoes</button>
+  </header>
+  <div id="screenLoading" class="state-screen">
+    <div class="spinner"></div>
+    <div class="state-subtitle">Buscando gastos...</div>
+  </div>
+  <div id="screenVazio" class="state-screen hidden">
+    <div class="state-icon">OK</div>
+    <div class="state-title">Tudo em dia!</div>
+    <div class="state-subtitle">Nenhum gasto pendente de classificacao.</div>
+    <button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button>
+  </div>
+  <div id="screenErro" class="state-screen hidden">
+    <div class="state-icon">Erro</div>
+    <div class="state-title">Erro de conexao</div>
+    <div class="state-subtitle" id="erroMsg">Nao foi possivel conectar ao servidor.</div>
+    <button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button>
+  </div>
+  <div id="screenGasto" class="hidden" style="width:100%;max-width:480px;">
+    <div class="card">
+      <div class="card-meta">GASTO PENDENTE</div>
+      <div class="card-header">
+        <div class="estabelecimento" id="gastoEstabelecimento"></div>
+        <div class="valor" id="gastoValor"></div>
+      </div>
+      <div class="card-data">
+        <div class="card-data-item">
+          <span class="card-data-label">Data</span>
+          <span class="card-data-value" id="gastoData"></span>
+        </div>
+        <div class="card-data-item">
+          <span class="card-data-label">Hora</span>
+          <span class="card-data-value" id="gastoHora"></span>
+        </div>
+        <div class="card-data-item">
+          <span class="card-data-label">Cartao</span>
+          <span class="card-data-value" id="gastoCartao"></span>
+        </div>
+      </div>
+      <div class="progress-text" id="progressText"></div>
+      <div class="categorias-title">Selecione a categoria</div>
+      <div class="categorias-grid">
+        <button class="btn-categoria alimentacao" onclick="confirmarCategoria('alimentacao')">
+          <span class="emoji">Prato</span> Alimentacao
+        </button>
+        <button class="btn-categoria transporte" onclick="confirmarCategoria('transporte')">
+          <span class="emoji">Carro</span> Transporte
+        </button>
+        <button class="btn-categoria lazer" onclick="confirmarCategoria('lazer')">
+          <span class="emoji">Jogo</span> Lazer
+        </button>
+        <button class="btn-categoria saude" onclick="confirmarCategoria('saude')">
+          <span class="emoji">Saude</span> Saude
+        </button>
+        <button class="btn-categoria educacao" onclick="confirmarCategoria('educacao')">
+          <span class="emoji">Livro</span> Educacao
+        </button>
+        <button class="btn-categoria casa" onclick="confirmarCategoria('casa')">
+          <span class="emoji">Casa</span> Casa
+        </button>
+        <button class="btn-categoria roupas" onclick="confirmarCategoria('roupas')">
+          <span class="emoji">Roupa</span> Roupas
+        </button>
+        <button class="btn-categoria outros" onclick="confirmarCategoria('outros')">
+          <span class="emoji">Box</span> Outros
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script>
+    const API = 'https://web-production-09718.up.railway.app';
+    let gastos = [];
+    let indexAtual = 0;
+    function mostrarTela(id) {
+      ['screenLoading','screenVazio','screenErro','screenGasto'].forEach(s => {
+        document.getElementById(s).classList.add('hidden');
+      });
+      document.getElementById(id).classList.remove('hidden');
+    }
+    function showToast(msg, tipo) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (tipo ? ' ' + tipo : '');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+    function formatarValor(v) {
+      if (!v) return '--';
+      const num = parseFloat(v);
+      return isNaN(num) ? v : 'R$ ' + num.toFixed(2).replace('.', ',');
+    }
+    function formatarData(dtStr) {
+      if (!dtStr) return '--';
+      try { return new Date(dtStr).toLocaleDateString('pt-BR'); } catch { return dtStr; }
+    }
+    function formatarHora(dtStr) {
+      if (!dtStr) return '--';
+      try { return new Date(dtStr).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}); } catch { return dtStr; }
+    }
+    function renderGasto(g) {
+      document.getElementById('gastoEstabelecimento').textContent = g.estabelecimento || g.descricao || 'Desconhecido';
+      document.getElementById('gastoValor').textContent = formatarValor(g.valor);
+      document.getElementById('gastoData').textContent = formatarData(g.data || g.created_at);
+      document.getElementById('gastoHora').textContent = formatarHora(g.data || g.created_at);
+      document.getElementById('gastoCartao').textContent = g.cartao || g.ultimos_digitos || '****';
+      document.getElementById('progressText').textContent = (indexAtual + 1) + ' de ' + gastos.length + ' pendentes';
+      mostrarTela('screenGasto');
+    }
+    async function carregarGastos() {
+      mostrarTela('screenLoading');
+      try {
+        const res = await fetch(API + '/gastos/pendentes');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        gastos = Array.isArray(data) ? data : (data.gastos || data.items || []);
+        indexAtual = 0;
+        if (gastos.length === 0) { mostrarTela('screenVazio'); } else { renderGasto(gastos[0]); }
+      } catch (err) {
+        document.getElementById('erroMsg').textContent = err.message || 'Erro desconhecido';
+        mostrarTela('screenErro');
+      }
+    }
+    async function confirmarCategoria(cat) {
+      const g = gastos[indexAtual];
+      if (!g) return;
+      try {
+        const res = await fetch(API + '/gastos/' + g.id + '/confirmar?categoria=' + cat, { method: 'PATCH' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        showToast(cat.charAt(0).toUpperCase() + cat.slice(1) + ' confirmado!', 'success');
+        indexAtual++;
+        if (indexAtual < gastos.length) { setTimeout(() => renderGasto(gastos[indexAtual]), 400); }
+        else { setTimeout(() => mostrarTela('screenVazio'), 600); }
+      } catch (err) { showToast('Erro: ' + err.message, 'error'); }
+    }
+    async function requestNotifPermission() {
+      if (!('Notification' in window)) { showToast('Notificacoes nao suportadas', 'error'); return; }
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        showToast('Notificacoes ativadas!', 'success');
+        document.getElementById('btnNotif').textContent = 'Ativado';
+        registerServiceWorker();
+      } else { showToast('Notificacoes bloqueadas', 'error'); }
+    }
+    async function registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.register('./sw.js');
+          setInterval(async () => {
+            try {
+              const res = await fetch(API + '/gastos/pendentes');
+              const data = await res.json();
+              const novos = Array.isArray(data) ? data : (data.gastos || []);
+              if (novos.length > gastos.length && Notification.permission === 'granted') {
+                new Notification('FinanMM - Novo gasto!', { body: 'Voce tem ' + novos.length + ' gasto(s) para classificar.', icon: './icon-192.png' });
+              }
+            } catch(e) {}
+          }, 60000);
+        } catch (err) { console.error('SW error:', err); }
+      }
+    }
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
+    carregarGastos();
+    let touchStartY = 0;
+    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
+    document.addEventListener('touchend', e => {
+      if (window.scrollY === 0 && e.changedTouches[0].clientY - touchStartY > 80) { carregarGastos(); }
+    });
+  </script>
+</body>
+</html>
