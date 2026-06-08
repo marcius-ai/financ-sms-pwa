@@ -57,14 +57,19 @@
     }
     .btn-categoria:active { transform: scale(0.95); }
     .btn-categoria .emoji { font-size: 1.5rem; }
-    .btn-categoria.alimentacao { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
-    .btn-categoria.transporte  { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
-    .btn-categoria.lazer       { background:#fce4ec; color:#ad1457; border-color:#f48fb1; }
-    .btn-categoria.saude       { background:#f3e5f5; color:#6a1b9a; border-color:#ce93d8; }
-    .btn-categoria.educacao    { background:#fff8e1; color:#f57f17; border-color:#ffe082; }
-    .btn-categoria.casa        { background:#e0f2f1; color:#00695c; border-color:#80cbc4; }
-    .btn-categoria.roupas      { background:#fbe9e7; color:#bf360c; border-color:#ffab91; }
-    .btn-categoria.outros      { background:#f5f5f5; color:#424242; border-color:#bdbdbd; }
+    .btn-categoria.alimentacao   { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+    .btn-categoria.assinaturas   { background:#e8eaf6; color:#283593; border-color:#9fa8da; }
+    .btn-categoria.bares         { background:#fff3e0; color:#e65100; border-color:#ffcc80; }
+    .btn-categoria.caridade      { background:#fce4ec; color:#880e4f; border-color:#f48fb1; }
+    .btn-categoria.empresa       { background:#e3f2fd; color:#0d47a1; border-color:#90caf9; }
+    .btn-categoria.entretenimento{ background:#f3e5f5; color:#6a1b9a; border-color:#ce93d8; }
+    .btn-categoria.mercado       { background:#e0f2f1; color:#004d40; border-color:#80cbc4; }
+    .btn-categoria.mobilidade    { background:#e1f5fe; color:#01579b; border-color:#81d4fa; }
+    .btn-categoria.presentes     { background:#fdf3e7; color:#bf360c; border-color:#ffab91; }
+    .btn-categoria.reembolsavel  { background:#e8f5e9; color:#1b5e20; border-color:#66bb6a; }
+    .btn-categoria.saude         { background:#f9fbe7; color:#558b2f; border-color:#c5e1a5; }
+    .btn-categoria.servicos      { background:#fafafa; color:#424242; border-color:#bdbdbd; }
+    .btn-categoria.vestuario     { background:#fbe9e7; color:#4e342e; border-color:#ffab91; }
     .btn-categoria:hover { opacity: 0.9; transform: translateY(-1px); }
     .state-screen {
       width: 100%; max-width: 480px; display: flex; flex-direction: column;
@@ -146,28 +151,43 @@
       <div class="categorias-title">Selecione a categoria</div>
       <div class="categorias-grid">
         <button class="btn-categoria alimentacao" onclick="confirmarCategoria('alimentacao')">
-          <span class="emoji">Prato</span> Alimentacao
+          <span class="emoji">Alimentacao</span>
         </button>
-        <button class="btn-categoria transporte" onclick="confirmarCategoria('transporte')">
-          <span class="emoji">Carro</span> Transporte
+        <button class="btn-categoria assinaturas" onclick="confirmarCategoria('assinaturas')">
+          <span class="emoji">Assinaturas</span>
         </button>
-        <button class="btn-categoria lazer" onclick="confirmarCategoria('lazer')">
-          <span class="emoji">Jogo</span> Lazer
+        <button class="btn-categoria bares" onclick="confirmarCategoria('bares')">
+          <span class="emoji">Bares/Restaurantes</span>
+        </button>
+        <button class="btn-categoria caridade" onclick="confirmarCategoria('caridade')">
+          <span class="emoji">Caridade</span>
+        </button>
+        <button class="btn-categoria empresa" onclick="confirmarCategoria('empresa')">
+          <span class="emoji">Empresa</span>
+        </button>
+        <button class="btn-categoria entretenimento" onclick="confirmarCategoria('entretenimento')">
+          <span class="emoji">Entretenimento</span>
+        </button>
+        <button class="btn-categoria mercado" onclick="confirmarCategoria('mercado')">
+          <span class="emoji">Mercado</span>
+        </button>
+        <button class="btn-categoria mobilidade" onclick="confirmarCategoria('mobilidade')">
+          <span class="emoji">Mobilidade</span>
+        </button>
+        <button class="btn-categoria presentes" onclick="confirmarCategoria('presentes')">
+          <span class="emoji">Presentes</span>
+        </button>
+        <button class="btn-categoria reembolsavel" onclick="confirmarCategoria('reembolsavel')">
+          <span class="emoji">Reembolsavel</span>
         </button>
         <button class="btn-categoria saude" onclick="confirmarCategoria('saude')">
-          <span class="emoji">Saude</span> Saude
+          <span class="emoji">Saude</span>
         </button>
-        <button class="btn-categoria educacao" onclick="confirmarCategoria('educacao')">
-          <span class="emoji">Livro</span> Educacao
+        <button class="btn-categoria servicos" onclick="confirmarCategoria('servicos')">
+          <span class="emoji">Servicos</span>
         </button>
-        <button class="btn-categoria casa" onclick="confirmarCategoria('casa')">
-          <span class="emoji">Casa</span> Casa
-        </button>
-        <button class="btn-categoria roupas" onclick="confirmarCategoria('roupas')">
-          <span class="emoji">Roupa</span> Roupas
-        </button>
-        <button class="btn-categoria outros" onclick="confirmarCategoria('outros')">
-          <span class="emoji">Box</span> Outros
+        <button class="btn-categoria vestuario" onclick="confirmarCategoria('vestuario')">
+          <span class="emoji">Vestuario</span>
         </button>
       </div>
     </div>
