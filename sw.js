@@ -1,25 +1,27 @@
-const CACHE_NAME = 'financmm-v1';
+const CACHE_NAME = 'finanmm-v2';
 const API_BASE = 'https://web-production-09718.up.railway.app';
+
 const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json'
+  './', './index.html', './manifest.json',
+  './icon-192.png', './icon-512.png'
 ];
 
-// Install: cache static assets
+// Install
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
+  self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    )
   );
+  self.clients.claim();
 });
 
 // Fetch: network-first for API, cache-first for assets
@@ -27,15 +29,9 @@ self.addEventListener('fetch', event => {
   const url = event.request.url;
   if (url.startsWith(API_BASE)) {
     // Network first for API
-    event.respondWith(
-      fetch(event.request).catch(() =>
-        new Response(JSON.stringify({ error: 'offline' }), {
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    );
+    event.respondWith(fetch(event.request).catch(() => new Response('{"error":"offline"}', {headers:{'Content-Type':'application/json'}})));
   } else {
-    // Cache first for static assets
+    // Cache first for assets
     event.respondWith(
       caches.match(event.request).then(cached => cached || fetch(event.request))
     );
@@ -44,56 +40,51 @@ self.addEventListener('fetch', event => {
 
 // Push notifications
 self.addEventListener('push', event => {
-  let data = { title: 'FinanMM', body: 'Novo gasto para classificar!' };
+  let data = { title: 'FinanMM', body: 'Novo gasto para classificar!', categoria: null, estabelecimento: null };
   try { data = event.data.json(); } catch (e) {}
+
+  const title = data.title || 'FinanMM - Novo gasto!';
+  const options = {
+    body: data.body || 'Toque para classificar',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    tag: 'finanmm-gasto',
+    renotify: true,
+    requireInteraction: true,
+    data: { url: './', categoria: data.categoria },
+    actions: data.categoria ? [
+      { action: 'confirmar', title: 'Confirmar: ' + data.categoria },
+      { action: 'abrir', title: 'Ver no app' }
+    ] : [
+      { action: 'abrir', title: 'Classificar agora' }
+    ]
+  };
+
   event.waitUntil(
-    self.registration.showNotification(data.title || 'FinanMM', {
-      body: data.body || 'Novo gasto para classificar!',
-      icon: './icon-192.png',
-      badge: './icon-192.png',
-      vibrate: [200, 100, 200],
-      data: { url: './' },
-      actions: [
-        { action: 'open', title: 'Classificar agora' },
-        { action: 'close', title: 'Depois' }
-      ]
-    })
+    self.registration.showNotification(title, options)
   );
 });
 
 // Notification click
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  if (event.action === 'close') return;
+  const url = (event.notification.data && event.notification.data.url) || './';
+
+  if (event.action === 'confirmar' && event.notification.data && event.notification.data.gastoId) {
+    // Confirm category directly
+    const gastoId = event.notification.data.gastoId;
+    const categoria = event.notification.data.categoria;
+    fetch(API_BASE + '/gastos/' + gastoId + '/confirmar?categoria=' + encodeURIComponent(categoria), { method: 'PATCH' });
+  }
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      if (clientList.length > 0) {
-        const client = clientList[0];
-        client.focus();
-        return client.navigate('./');
+      for (const client of clientList) {
+        if (client.url.includes('financ-sms-pwa') && 'focus' in client) {
+          return client.focus();
+        }
       }
-      return clients.openWindow('./');
+      return clients.openWindow(url);
     })
   );
-});
-
-// Background sync
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-gastos') {
-    event.waitUntil(
-      fetch(API_BASE + '/gastos/pendentes')
-        .then(res => res.json())
-        .then(data => {
-          const gastos = Array.isArray(data) ? data : (data.gastos || []);
-          if (gastos.length > 0) {
-            return self.registration.showNotification('FinanMM', {
-              body: 'Voce tem ' + gastos.length + ' gasto(s) pendentes!',
-              icon: './icon-192.png',
-              badge: './icon-192.png'
-            });
-          }
-        })
-        .catch(() => {})
-    );
-  }
 });
