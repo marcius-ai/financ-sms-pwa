@@ -278,39 +278,62 @@
         else { setTimeout(() => mostrarTela('screenVazio'), 600); }
       } catch (err) { showToast('Erro: ' + err.message, 'error'); }
     }
+    const VAPID_PUBLIC_KEY = 'BCg3S_73CCvx2wuPRLc9N28LIMoctyQlOIoHv03rkpYvdqJ31DnAHlDqgdE32YlqwipY27drHaZk-IbPmaRY2P4';
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
     async function requestNotifPermission() {
       if (!('Notification' in window)) { showToast('Notificacoes nao suportadas', 'error'); return; }
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
-        showToast('Notificacoes ativadas!', 'success');
-        document.getElementById('btnNotif').textContent = 'Ativado';
-        registerServiceWorker();
+        showToast('Ativando notificacoes...', 'success');
+        await registerAndSubscribe();
       } else { showToast('Notificacoes bloqueadas', 'error'); }
     }
+
+    async function registerAndSubscribe() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showToast('Push nao suportado neste browser', 'error'); return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.register('./sw.js');
+        await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+          });
+        }
+        // Send subscription to backend
+        await fetch(API + '/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub.toJSON())
+        });
+        showToast('Notificacoes ativadas!', 'success');
+        document.getElementById('btnNotif').textContent = 'Notif ativa';
+        document.getElementById('btnNotif').style.background = '#4CAF50';
+      } catch(err) {
+        showToast('Erro: ' + err.message, 'error');
+      }
+    }
+
     async function registerServiceWorker() {
       if ('serviceWorker' in navigator) {
         try {
-          const reg = await navigator.serviceWorker.register('./sw.js');
-          setInterval(async () => {
-            try {
-              const res = await fetch(API + '/gastos/pendentes');
-              const data = await res.json();
-              const novos = Array.isArray(data) ? data : (data.gastos || []);
-              if (novos.length > gastos.length && Notification.permission === 'granted') {
-                new Notification('FinanMM - Novo gasto!', { body: 'Voce tem ' + novos.length + ' gasto(s) para classificar.', icon: './icon-192.png' });
-              }
-            } catch(e) {}
-          }, 60000);
-        } catch (err) { console.error('SW error:', err); }
+          await navigator.serviceWorker.register('./sw.js');
+        } catch(e) {}
       }
     }
-    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
-    carregarGastos();
-    let touchStartY = 0;
-    document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
-    document.addEventListener('touchend', e => {
-      if (window.scrollY === 0 && e.changedTouches[0].clientY - touchStartY > 80) { carregarGastos(); }
-    });
-  </script>
+
+</script>
 </body>
 </html>
