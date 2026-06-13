@@ -233,38 +233,29 @@
     }
     async function carregarGastos() {
       mostrarTela('screenLoading');
-      const MAX_TENTATIVAS = 3;
-      const DELAY_MS = 3000;
+      const MAX_TENTATIVAS = 5;
+      const DELAY_MS = 5000;
+      const TIMEOUT_MS = 15000;
       let tentativa = 0;
       while (tentativa < MAX_TENTATIVAS) {
         try {
-          const res = await fetch(API + '/gastos/pendentes');
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+          const res = await fetch(API + '/gastos/pendentes', { signal: controller.signal });
+          clearTimeout(timer);
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const data = await res.json();
-          if (data && data.error) throw new Error('Backend: ' + data.error);
-          gastos = Array.isArray(data) ? data : (data.gastos || data.items || []);
-          indexAtual = 0;
-          if (gastos.length === 0) {
-            if (tentativa < MAX_TENTATIVAS - 1) {
-              tentativa++;
-              await new Promise(r => setTimeout(r, DELAY_MS));
-              continue;
-            }
-            mostrarTela('screenVazio');
-          } else {
-            renderGasto(gastos[0]);
-          }
+          if (data && data.error) throw new Error('Backend offline');
+          renderizarGastos(data);
           return;
-        } catch (err) {
+        } catch (e) {
           tentativa++;
           if (tentativa < MAX_TENTATIVAS) {
             await new Promise(r => setTimeout(r, DELAY_MS));
-          } else {
-            document.getElementById('erroMsg').textContent = 'Erro ao conectar ao servidor. Tente novamente em alguns instantes.';
-            mostrarTela('screenErro');
           }
         }
       }
+      mostrarTela('screenErro');
     }
     async function confirmarCategoria(cat) {
       const g = gastos[indexAtual];
