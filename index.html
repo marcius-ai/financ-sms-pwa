@@ -183,7 +183,7 @@
         <button class="btn-categoria saude" onclick="confirmarCategoria('saude')">
           <span class="emoji">Saude</span>
         </button>
-        <button class="btn-categoria servicos" onclick="confirmarCategoria('servicos')">
+        <button class="btn-categoria servicos" onclick="confirmarCategoriah('servicos')">
           <span class="emoji">Servicos</span>
         </button>
         <button class="btn-categoria vestuario" onclick="confirmarCategoria('vestuario')">
@@ -246,7 +246,7 @@
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const data = await res.json();
           if (data && data.error) throw new Error('Backend offline');
-          renderizarGastos(data);
+          gastos = Array.isArray(data) ? data : (data.gastos || []); indexAtual = 0; if (gastos.length > 0) { renderGasto(gastos[0]); return; } else { mostrarTela('screenVazio'); return; }
           return;
         } catch (e) {
           tentativa++;
