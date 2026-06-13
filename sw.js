@@ -40,10 +40,10 @@ self.addEventListener('fetch', event => {
 
 // Push notifications
 self.addEventListener('push', event => {
-  let data = { title: 'FinanMM', body: 'Novo gasto para classificar!', categoria: null, estabelecimento: null };
+  let data = { title: 'Finan$M$', body: 'Novo gasto para classificar!', categoria: null, estabelecimento: null };
   try { data = event.data.json(); } catch (e) {}
 
-  const title = data.title || 'FinanMM - Novo gasto!';
+  const title = data.title || 'Finan$M$ - Novo gasto!';
   const options = {
     body: data.body || 'Toque para classificar',
     icon: './icon-192.png',
