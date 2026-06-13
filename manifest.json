@@ -1,6 +1,6 @@
 {
-  "name": "FinanMM - Gastos SMS",
-  "short_name": "FinanMM",
+  "name": "Finan$M$ - Gastos SMS",
+  "short_name": "Finan$M$",
   "description": "Classificacao de gastos de cartao de credito via SMS",
   "start_url": "./index.html",
   "display": "standalone",
