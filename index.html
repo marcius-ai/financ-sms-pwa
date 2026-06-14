@@ -194,6 +194,7 @@
     <div class="header-btns">
       <button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
       <button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
+      <button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
       <button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">Notificacoes</button>
     </div>
   </header>
@@ -281,6 +282,30 @@
     </div>
   </div>
 
+  <!-- FATURAS -->
+  <div id="screenFaturas" class="hidden">
+    <div class="hist-header">
+      <button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button>
+      <div class="hist-title">&#128196; Faturas</div>
+    </div>
+    <div style="width:100%;max-width:480px;padding:12px 16px;">
+      <div id="faturaConfig" style="background:#f5f5f5;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px;">Ciclo de Faturamento</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div style="flex:1;min-width:140px;">
+            <label style="font-size:11px;color:#666;font-weight:600;">Fechamento atual</label>
+            <input type="date" id="inputFechamento" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;color:#333;" onchange="salvarFechamento()">
+          </div>
+          <div style="font-size:12px;color:#666;padding-top:16px;">Vence dia <strong>25</strong></div>
+        </div>
+        <div id="faturaVencimento" style="font-size:12px;color:#3949ab;font-weight:600;margin-top:6px;"></div>
+      </div>
+      <div id="faturaList" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="hist-loading">Configure o fechamento acima.</div>
+      </div>
+    </div>
+  </div>
+
   <div id="modalReclass" class="modal-overlay hidden" onclick="fecharModal(event)">
     <div class="modal-box">
       <div class="modal-drag"></div>
@@ -311,7 +336,7 @@
     let gastos = [], indexAtual = 0, gastoSelecionadoId = null;
 
     function mostrarTela(id) {
-      ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos'].forEach(s => {
+      ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas'].forEach(s => {
         document.getElementById(s).classList.add('hidden');
       });
       document.getElementById(id).classList.remove('hidden');
@@ -594,10 +619,171 @@
       else mostrarTela('screenVazio');
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    
+    // ===== FATURAS =====
+
+    function abrirFaturas() {
+      mostrarTela('screenFaturas');
+      // Load saved fechamento date
+      const saved = localStorage.getItem('fechamento_atual');
+      if (saved) {
+        document.getElementById('inputFechamento').value = saved;
+        atualizarVencimento(saved);
+        carregarFaturas(saved);
+      }
+    }
+
+    function fecharFaturas() {
+      mostrarTela(gastos.length > 0 ? 'screenGasto' : 'screenVazio');
+    }
+
+    function salvarFechamento() {
+      const val = document.getElementById('inputFechamento').value;
+      if (!val) return;
+      localStorage.setItem('fechamento_atual', val);
+      atualizarVencimento(val);
+      carregarFaturas(val);
+    }
+
+    function atualizarVencimento(fechamento) {
+      const d = new Date(fechamento + 'T12:00:00');
+      // Vencimento = dia 25 do mes seguinte
+      const mesVenc = new Date(d.getFullYear(), d.getMonth() + 1, 25);
+      const opts = { day: '2-digit', month: 'long', year: 'numeric' };
+      const fmtVenc = mesVenc.toLocaleDateString('pt-BR', opts);
+      document.getElementById('faturaVencimento').textContent = 'Vencimento: ' + fmtVenc;
+    }
+
+    async function carregarFaturas(fechamentoAtual) {
+      document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Carregando...</div>';
+      try {
+        const res = await fetch(API + '/gastos/confirmados');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        renderFaturas(data, fechamentoAtual);
+      } catch(e) {
+        document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Erro ao carregar gastos.</div>';
+      }
+    }
+
+    function calcFaturaId(dataCompra, ciclos) {
+      // Returns index of ciclo this purchase belongs to (0 = oldest)
+      for (let i = 0; i < ciclos.length; i++) {
+        if (dataCompra >= ciclos[i].inicio && dataCompra <= ciclos[i].fechamento) return i;
+      }
+      return -1;
+    }
+
+    function renderFaturas(gastos, fechamentoAtualStr) {
+      // Build last 3 + next 1 billing cycles based on fechamentoAtual
+      const fAtual = new Date(fechamentoAtualStr + 'T12:00:00');
+
+      // Build array of cycles: [2 months back, 1 month back, current, next]
+      const ciclos = [];
+      for (let offset = -2; offset <= 1; offset++) {
+        const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate());
+        const inicioD = new Date(fechD.getFullYear(), fechD.getMonth() - 1, fechD.getDate() + 1);
+        const vencD = new Date(fechD.getFullYear(), fechD.getMonth() + 1, 25);
+        ciclos.push({
+          inicio: inicioD.toISOString().slice(0,10),
+          fechamento: fechD.toISOString().slice(0,10),
+          vencimento: vencD.toISOString().slice(0,10),
+          label: fechD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          tipo: offset < 0 ? 'passada' : offset === 0 ? 'atual' : 'futura',
+          itens: []
+        });
+      }
+
+      // Assign gastos to ciclos + project installments
+      gastos.forEach(g => {
+        const dataCp = g.data_compra;
+        if (!dataCp) return;
+        const parcTotal = parseInt(g.parcelas_total || 1);
+        const moeda = extrairMoeda(g.mensagem_original);
+        const valorTotal = parseFloat(g.valor || 0);
+        const valorParcela = parcTotal > 1 ? valorTotal / parcTotal : valorTotal;
+
+        for (let parc = 1; parc <= parcTotal; parc++) {
+          // For installment N, compute the date as dataCp + (N-1) months
+          const baseDate = new Date(dataCp + 'T12:00:00');
+          const parcDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + (parc - 1), baseDate.getDate());
+          const parcDateStr = parcDate.toISOString().slice(0,10);
+
+          const cicloIdx = calcFaturaId(parcDateStr, ciclos);
+          if (cicloIdx === -1) return; // outside our window
+
+          ciclos[cicloIdx].itens.push({
+            id: g.id,
+            estabelecimento: g.estabelecimento,
+            categoria: g.categoria,
+            valor: parcTotal > 1 ? valorParcela : valorTotal,
+            moeda: moeda,
+            parcAtual: parc,
+            parcTotal: parcTotal,
+            dataCompra: dataCp,
+            cartao: g.cartao_final || ''
+          });
+        }
+      });
+
+      // Render cycles (reversed: newest first)
+      const html = [...ciclos].reverse().map(c => {
+        const totalCiclo = c.itens.reduce((s, i) => s + i.valor, 0);
+        const tipoLabel = c.tipo === 'atual' ? 'Atual' : c.tipo === 'futura' ? 'Proxima' : 'Fechada';
+        const dtFech = new Date(c.fechamento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
+        const dtVenc = new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'});
+
+        let itensHtml = '';
+        if (c.itens.length === 0) {
+          itensHtml = '<div class="fatura-empty">Nenhum gasto neste periodo.</div>';
+        } else {
+          // Sort by date desc
+          const sorted = c.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
+          itensHtml = sorted.map(item => {
+            const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
+            const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
+            const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
+            const valorFmt = sym + item.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+            return '<div class="fatura-item"><span class="fatura-item-nome">' + (item.estabelecimento||'?') + parcTag + cartaoTag + '</span><span class="fatura-item-valor">' + valorFmt + '</span></div>';
+          }).join('');
+        }
+
+        const sym = 'R$ ';
+        const totalFmt = sym + totalCiclo.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+        return '<div class="fatura-card ' + c.tipo + '">' +
+          '<div class="fatura-header"><span class="fatura-titulo">Fatura ' + c.label + '</span><span class="fatura-badge ' + c.tipo + '">' + tipoLabel + '</span></div>' +
+          '<div class="fatura-datas">Fecha: ' + dtFech + ' &nbsp;|&nbsp; Vence: ' + dtVenc + '</div>' +
+          '<div class="fatura-total">' + totalFmt + '</div>' +
+          itensHtml + '</div>';
+      }).join('');
+
+      document.getElementById('faturaList').innerHTML = html || '<div class="hist-loading">Nenhum dado.</div>';
+    }
+
+document.addEventListener('DOMContentLoaded', () => {
       carregarGastos();
       registerServiceWorker();
     });
   </script>
 </body>
 </html>
+  .fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
+  .fatura-card.atual { border-left:4px solid #3949ab; }
+  .fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
+  .fatura-card.passada { border-left:4px solid #4caf50; }
+  .fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+  .fatura-titulo { font-size:14px;font-weight:700;color:#333; }
+  .fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
+  .fatura-badge.atual { background:#3949ab;color:#fff; }
+  .fatura-badge.futura { background:#eee;color:#999; }
+  .fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
+  .fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
+  .fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
+  .fatura-item:last-child { border-bottom:none; }
+  .fatura-item-nome { color:#444;flex:1;padding-right:8px; }
+  .fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
+  .fatura-item-valor { color:#333;font-weight:700;white-space:nowrap; }
+  .fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
+  .fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
+
+
