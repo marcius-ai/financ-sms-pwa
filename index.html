@@ -185,6 +185,26 @@
   .cat-rank-bar { height: 100%; border-radius: 8px; background: #fff; transition: width 0.5s ease; }
   .cat-rank-name { width: 110px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); text-transform: capitalize; }
   .cat-rank-val { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
+
+  .fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
+  .fatura-card.atual { border-left:4px solid #3949ab; }
+  .fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
+  .fatura-card.passada { border-left:4px solid #4caf50; }
+  .fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+  .fatura-titulo { font-size:14px;font-weight:700;color:#333; }
+  .fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
+  .fatura-badge.atual { background:#3949ab;color:#fff; }
+  .fatura-badge.futura { background:#eee;color:#999; }
+  .fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
+  .fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
+  .fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
+  .fatura-item:last-child { border-bottom:none; }
+  .fatura-item-nome { color:#444;flex:1;padding-right:8px; }
+  .fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
+  .fatura-item-valor { color:#333;font-weight:700;white-space:nowrap; }
+  .fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
+  .fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
+
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -767,23 +787,3 @@ document.addEventListener('DOMContentLoaded', () => {
   </script>
 </body>
 </html>
-  .fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
-  .fatura-card.atual { border-left:4px solid #3949ab; }
-  .fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
-  .fatura-card.passada { border-left:4px solid #4caf50; }
-  .fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
-  .fatura-titulo { font-size:14px;font-weight:700;color:#333; }
-  .fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
-  .fatura-badge.atual { background:#3949ab;color:#fff; }
-  .fatura-badge.futura { background:#eee;color:#999; }
-  .fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
-  .fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
-  .fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
-  .fatura-item:last-child { border-bottom:none; }
-  .fatura-item-nome { color:#444;flex:1;padding-right:8px; }
-  .fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
-  .fatura-item-valor { color:#333;font-weight:700;white-space:nowrap; }
-  .fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
-  .fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
-
-
