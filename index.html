@@ -183,7 +183,7 @@
         <button class="btn-categoria saude" onclick="confirmarCategoria('saude')">
           <span class="emoji">Saude</span>
         </button>
-        <button class="btn-categoria servicos" onclick="confirmarCategoriah('servicos')">
+        <button class="btn-categoria servicos" onclick="confirmarCategoria('servicos')">
           <span class="emoji">Servicos</span>
         </button>
         <button class="btn-categoria vestuario" onclick="confirmarCategoria('vestuario')">
@@ -325,6 +325,11 @@
       }
     }
 
-</script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarGastos();
+      registerServiceWorker();
+    });
+  </script>
 </body>
 </html>
