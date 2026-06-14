@@ -282,9 +282,16 @@
       setTimeout(() => t.classList.remove('show'), 2800);
     }
 
-    function formatarValor(v) {
+    function extrairMoeda(msg) {
+      if (!msg) return 'BRL';
+      const m = msg.match(/VALOR DE (USD|EUR|GBP|ARS|CLP|UYU|MXN|COP|PEN)/i);
+      return m ? m[1].toUpperCase() : 'BRL';
+    }
+    const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'€',GBP:'£',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
+    function formatarValor(v, moeda) {
       if (typeof v !== 'number') return 'R$ -';
-      return 'R$ ' + v.toFixed(2).replace('.', ',');
+      const s = SIMBOLOS_MOEDA[moeda || 'BRL'] || moeda || 'R$';
+      return s + ' ' + v.toFixed(2).replace('.', ',');
     }
     function formatarData(d) {
       if (!d) return '-';
@@ -294,7 +301,7 @@
 
     function renderGasto(g) {
       document.getElementById('gastoEstabelecimento').textContent = g.estabelecimento || '-';
-      document.getElementById('gastoValor').textContent = formatarValor(g.valor);
+      document.getElementById('gastoValor').textContent = formatarValor(g.valor, extrairMoeda(g.mensagem_original));
       document.getElementById('gastoData').textContent = formatarData(g.data_compra);
       document.getElementById('gastoHora').textContent = formatarHora(g.hora_compra);
       document.getElementById('gastoCartao').textContent = '****';
@@ -353,7 +360,7 @@
         document.getElementById('histList').innerHTML = data.map(g => {
           const nomeEsc = (g.estabelecimento||'').replace(/'/g,"\\'");
           const catLabel = g.categoria || '?';
-          const valorFmt = formatarValor(g.valor);
+          const moedaG = extrairMoeda(g.mensagem_original); const valorFmt = formatarValor(g.valor, moedaG);
           const dataFmt = formatarData(g.data_compra);
           return '<div class="hist-item" onclick="abrirReclass(\''+g.id+'\',\''+nomeEsc+'\',\''+catLabel+'\',\''+valorFmt+'\')">' +
             '<div class="hist-item-left">' +
