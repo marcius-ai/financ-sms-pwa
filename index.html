@@ -157,13 +157,43 @@
   #toast.show { transform:translateX(-50%) translateY(0); }
   #toast.success { background:#2e7d32; }
   #toast.error { background:#c62828; }
+
+  #screenGraficos {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; padding: 16px; overflow-y: auto; color: #fff;
+  }
+  .chart-card {
+    background: #fff; border-radius: 16px; padding: 16px;
+    width: 100%; max-width: 480px; margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .chart-title {
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: #999; text-transform: uppercase; margin-bottom: 12px;
+  }
+  .chart-total {
+    background: rgba(255,255,255,0.1); border-radius: 16px;
+    padding: 20px; width: 100%; max-width: 480px;
+    margin-bottom: 16px; text-align: center;
+  }
+  .chart-total-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+  .chart-total-value { font-size: 32px; font-weight: 900; color: #fff; }
+  .chart-total-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+  .cat-rank { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px; margin-bottom: 16px; }
+  .cat-rank-item { display: flex; align-items: center; gap: 10px; }
+  .cat-rank-bar-wrap { flex: 1; background: rgba(255,255,255,0.1); border-radius: 8px; height: 8px; overflow: hidden; }
+  .cat-rank-bar { height: 100%; border-radius: 8px; background: #fff; transition: width 0.5s ease; }
+  .cat-rank-name { width: 110px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); text-transform: capitalize; }
+  .cat-rank-val { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <header class="app-header">
     <div class="app-title">Finan$M$</div>
     <div class="header-btns">
       <button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
+      <button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
       <button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">Notificacoes</button>
     </div>
   </header>
@@ -269,7 +299,7 @@
     let gastos = [], indexAtual = 0, gastoSelecionadoId = null;
 
     function mostrarTela(id) {
-      ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico'].forEach(s => {
+      ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos'].forEach(s => {
         document.getElementById(s).classList.add('hidden');
       });
       document.getElementById(id).classList.remove('hidden');
@@ -438,6 +468,118 @@
       if ('serviceWorker' in navigator) {
         try { await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
       }
+    }
+
+
+    // ---- GRAFICOS ----
+    let _chartPizza = null, _chartBarras = null;
+
+    const CORES_CAT = {
+      alimentacao:'#4CAF50', assinaturas:'#2196F3', bares:'#FF9800',
+      caridade:'#E91E63', empresa:'#3F51B5', entretenimento:'#9C27B0',
+      mercado:'#009688', mobilidade:'#03A9F4', presentes:'#FF5722',
+      reembolsavel:'#8BC34A', saude:'#F44336', servicos:'#607D8B', vestuario:'#E91E63',
+      sem_categoria:'#9E9E9E'
+    };
+
+    async function abrirGraficos() {
+      mostrarTela('screenGraficos');
+      document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Carregando...</div>';
+      if (_chartPizza) { _chartPizza.destroy(); _chartPizza = null; }
+      if (_chartBarras) { _chartBarras.destroy(); _chartBarras = null; }
+      try {
+        const res = await fetch(API + '/gastos/resumo');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        renderGraficos(d);
+      } catch(e) {
+        document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Erro: ' + e.message + '</div>';
+      }
+    }
+
+    function renderGraficos(d) {
+      const cats = Object.entries(d.por_categoria || {}).sort((a,b) => b[1]-a[1]);
+      const meses = Object.entries(d.por_mes || {}).sort((a,b) => a[0].localeCompare(b[0]));
+      const total = d.total_brl || 0;
+      const totalGastos = d.total_gastos || 0;
+
+      const mesLabels = meses.map(([m]) => {
+        const [y,mo] = m.split('-');
+        const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        return nomes[parseInt(mo)-1] + ' ' + y.slice(2);
+      });
+
+      const html = `
+        <div class="chart-total">
+          <div class="chart-total-label">Total classificado (BRL)</div>
+          <div class="chart-total-value">R$ ${total.toFixed(2).replace('.',',')}</div>
+          <div class="chart-total-sub">${totalGastos} gasto${totalGastos !== 1 ? 's' : ''} no historico</div>
+        </div>
+
+        ${cats.length > 0 ? `
+        <div class="cat-rank">
+          ${cats.map(([cat, val]) => {
+            const pct = total > 0 ? (val/total*100) : 0;
+            const cor = CORES_CAT[cat] || '#9E9E9E';
+            return `<div class="cat-rank-item">
+              <div class="cat-rank-name">${cat}</div>
+              <div class="cat-rank-bar-wrap"><div class="cat-rank-bar" style="width:${pct.toFixed(1)}%;background:${cor}"></div></div>
+              <div class="cat-rank-val">R$ ${val.toFixed(2).replace('.',',')}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : ''}
+
+        ${cats.length > 0 ? `<div class="chart-card"><div class="chart-title">Distribuicao por categoria</div><canvas id="canvasPizza" height="300"></canvas></div>` : ''}
+        ${meses.length > 1 ? `<div class="chart-card"><div class="chart-title">Gastos por mes</div><canvas id="canvasBarras" height="200"></canvas></div>` : ''}
+      `;
+
+      document.getElementById('graficosContent').innerHTML = html;
+
+      // Pizza chart
+      if (cats.length > 0) {
+        const ctxP = document.getElementById('canvasPizza');
+        if (ctxP) {
+          _chartPizza = new Chart(ctxP, {
+            type: 'doughnut',
+            data: {
+              labels: cats.map(([c]) => c),
+              datasets: [{ data: cats.map(([,v]) => v), backgroundColor: cats.map(([c]) => CORES_CAT[c] || '#9E9E9E'), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: true,
+              plugins: {
+                legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+                tooltip: { callbacks: { label: (ctx) => ' R$ ' + ctx.parsed.toFixed(2).replace('.',',') + ' (' + (ctx.parsed/total*100).toFixed(1) + '%)' } }
+              }
+            }
+          });
+        }
+      }
+
+      // Barras por mês
+      if (meses.length > 1) {
+        const ctxB = document.getElementById('canvasBarras');
+        if (ctxB) {
+          _chartBarras = new Chart(ctxB, {
+            type: 'bar',
+            data: {
+              labels: mesLabels,
+              datasets: [{ label: 'Total (R$)', data: meses.map(([,v]) => v), backgroundColor: '#3F51B5', borderRadius: 6 }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { ticks: { callback: v => 'R$' + v.toFixed(0) } } }
+            }
+          });
+        }
+      }
+    }
+
+    function fecharGraficos() {
+      if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
+      else mostrarTela('screenVazio');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
