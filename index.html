@@ -681,11 +681,13 @@
 
     function atualizarVencimento(fechamento) {
       const d = new Date(fechamento + 'T12:00:00');
-      // Vencimento = dia 25 do mes seguinte
-      const mesVenc = new Date(d.getFullYear(), d.getMonth() + 1, 25);
+      // Fatura atual: fecha em fechamento+1mes, vence dia 25 desse mesmo mes
+      // Ex: fechamento 15/06 -> fatura atual fecha 15/07 -> vence 25/07
+      const fechaAtual = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+      const mesVenc = new Date(fechaAtual.getFullYear(), fechaAtual.getMonth(), 25);
       const opts = { day: '2-digit', month: 'long', year: 'numeric' };
       const fmtVenc = mesVenc.toLocaleDateString('pt-BR', opts);
-      document.getElementById('faturaVencimento').textContent = 'Vencimento: ' + fmtVenc;
+      document.getElementById('faturaVencimento').textContent = 'Fatura atual vence: ' + fmtVenc;
     }
 
     async function carregarFaturas(fechamentoAtual) {
@@ -715,14 +717,17 @@
       // Build array of cycles: [2 months back, 1 month back, current, next]
       const ciclos = [];
       for (let offset = -2; offset <= 1; offset++) {
-        const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate());
-        const inicioD = new Date(fechD.getFullYear(), fechD.getMonth() - 1, fechD.getDate() + 1);
-        const vencD = new Date(fechD.getFullYear(), fechD.getMonth() + 1, 25);
+        // O usuario informa o fechamento do ciclo ANTERIOR.
+        // Ciclo offset=0 (atual): inicio = fAtual+1dia, fecha = fAtual+1mes, vence = dia25 do mes de fecha
+        const inicioBase = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate() + 1);
+        const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset + 1, fAtual.getDate());
+        const vencD = new Date(fechD.getFullYear(), fechD.getMonth(), 25);
+        const labelD = fechD; // Usa o mes de fechamento para o label
         ciclos.push({
-          inicio: inicioD.toISOString().slice(0,10),
+          inicio: inicioBase.toISOString().slice(0,10),
           fechamento: fechD.toISOString().slice(0,10),
           vencimento: vencD.toISOString().slice(0,10),
-          label: fechD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          label: labelD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
           tipo: offset < 0 ? 'passada' : offset === 0 ? 'atual' : 'futura',
           itens: []
         });
