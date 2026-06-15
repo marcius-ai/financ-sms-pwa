@@ -204,6 +204,10 @@
   .fatura-item-valor { color:#333;font-weight:700;white-space:nowrap; }
   .fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
   .fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
+  .fatura-cat-group { margin-bottom:8px; }
+  .fatura-cat-header { display:flex;justify-content:space-between;align-items:center;padding:6px 0 4px 0;border-bottom:1px solid #f0f0f0; }
+  .fatura-cat-name { font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#555;padding-left:6px; }
+  .fatura-cat-subtotal { font-size:12px;font-weight:700;color:#444; }
 
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -662,6 +666,16 @@
       if (!val) return;
       localStorage.setItem('fechamento_atual', val);
       atualizarVencimento(val);
+      // Extract day from date string YYYY-MM-DD
+      const parts = val.split('-');
+      const dia = parseInt(parts[2]);
+      const mesAno = parts[0] + '-' + parts[1];
+      // Save to API
+      fetch(API + '/faturas/configurar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({dia_fechamento: dia, mes_ano: mesAno})
+      }).catch(e => console.log('fatura config err:', e));
       carregarFaturas(val);
     }
 
@@ -724,18 +738,17 @@
         const valorParcela = parcTotal > 1 ? valorTotal / parcTotal : valorTotal;
 
         for (let parc = 1; parc <= parcTotal; parc++) {
-          // For installment N, compute the date as dataCp + (N-1) months
           const baseDate = new Date(dataCp + 'T12:00:00');
           const parcDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + (parc - 1), baseDate.getDate());
           const parcDateStr = parcDate.toISOString().slice(0,10);
 
           const cicloIdx = calcFaturaId(parcDateStr, ciclos);
-          if (cicloIdx === -1) return; // outside our window
+          if (cicloIdx === -1) return;
 
           ciclos[cicloIdx].itens.push({
             id: g.id,
             estabelecimento: g.estabelecimento,
-            categoria: g.categoria,
+            categoria: g.categoria || 'Sem categoria',
             valor: parcTotal > 1 ? valorParcela : valorTotal,
             moeda: moeda,
             parcAtual: parc,
@@ -753,18 +766,36 @@
         const dtFech = new Date(c.fechamento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
         const dtVenc = new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'});
 
+        // Group items by category with subtotals
+        const porCat = {};
+        c.itens.forEach(item => {
+          const cat = item.categoria || 'Sem categoria';
+          if (!porCat[cat]) porCat[cat] = { itens: [], subtotal: 0 };
+          porCat[cat].itens.push(item);
+          porCat[cat].subtotal += item.valor;
+        });
+
+        // Sort categories by subtotal desc
+        const catsSorted = Object.entries(porCat).sort((a,b) => b[1].subtotal - a[1].subtotal);
+
         let itensHtml = '';
         if (c.itens.length === 0) {
           itensHtml = '<div class="fatura-empty">Nenhum gasto neste periodo.</div>';
         } else {
-          // Sort by date desc
-          const sorted = c.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
-          itensHtml = sorted.map(item => {
-            const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
-            const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
-            const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
-            const valorFmt = sym + item.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-            return '<div class="fatura-item"><span class="fatura-item-nome">' + (item.estabelecimento||'?') + parcTag + cartaoTag + '</span><span class="fatura-item-valor">' + valorFmt + '</span></div>';
+          itensHtml = catsSorted.map(([cat, catData]) => {
+            const catColor = CORES_CAT[cat.toLowerCase().replace('/','').replace(' ','_')] || CORES_CAT[cat.toLowerCase()] || '#9E9E9E';
+            const catSubtotalFmt = 'R$ ' + catData.subtotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+            const sorted = catData.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
+            const itensDetalhe = sorted.map(item => {
+              const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
+              const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
+              const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
+              const valorFmt = sym + item.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+              return '<div class="fatura-item"><span class="fatura-item-nome">' + (item.estabelecimento||'?') + parcTag + cartaoTag + '</span><span class="fatura-item-valor">' + valorFmt + '</span></div>';
+            }).join('');
+            return '<div class="fatura-cat-group">' +
+              '<div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid ' + catColor + '">' + cat + '</span><span class="fatura-cat-subtotal">' + catSubtotalFmt + '</span></div>' +
+              itensDetalhe + '</div>';
           }).join('');
         }
 
