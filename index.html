@@ -527,8 +527,8 @@
       try {
         const reg = await navigator.serviceWorker.ready;
         const res = await fetch(API+'/push/vapid-public-key');
-        const {public_key} = await res.json();
-        const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(public_key) });
+        const {publicKey} = await res.json();
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(publicKey) });
         const sj = sub.toJSON();
         await fetch(API+'/push/subscribe',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys}) });
         showToast('Notificacoes ativadas!','success');
