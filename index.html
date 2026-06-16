@@ -545,138 +545,107 @@
 
 
     // ---- GRAFICOS ----
-    let _chartPizza = null, _chartBarras = null;
-
+    let _chartAtivo = null;
+    let _faturasDados = [];
     const CORES_CAT = {
-      alimentacao:'#4CAF50', assinaturas:'#2196F3', bares:'#FF9800',
-      caridade:'#E91E63', empresa:'#3F51B5', entretenimento:'#9C27B0',
-      mercado:'#009688', mobilidade:'#03A9F4', presentes:'#FF5722',
-      reembolsavel:'#8BC34A', saude:'#F44336', servicos:'#607D8B', vestuario:'#E91E63',
-      sem_categoria:'#9E9E9E'
+      alimentacao:'#4CAF50',assinaturas:'#2196F3',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',
+      entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',
+      reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'
     };
-
     async function abrirGraficos() {
       mostrarTela('screenGraficos');
       document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Carregando...</div>';
-      if (_chartPizza) { _chartPizza.destroy(); _chartPizza = null; }
-      if (_chartBarras) { _chartBarras.destroy(); _chartBarras = null; }
+      if (_chartAtivo) { _chartAtivo.destroy(); _chartAtivo = null; }
+      var saved = localStorage.getItem('fechamento_atual');
+      try { var cfg = await (await fetch(API+'/config')).json(); if(cfg&&cfg.fechamento_atual) saved=cfg.fechamento_atual; } catch(e){}
+      if (!saved) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>'; return; }
       try {
-        const res = await fetch(API + '/gastos/resumo');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const d = await res.json();
-        renderGraficos(d);
-      } catch(e) {
-        document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Erro: ' + e.message + '</div>';
-      }
+        var res = await fetch(API+'/gastos/confirmados');
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        _faturasDados = calcFaturasDados(await res.json(), saved);
+        renderGraficosUI(_faturasDados);
+      } catch(e) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>'; }
     }
-
-    function mostrarGrafico(tipo) {
-      const barCat = document.getElementById('chartBarCat');
-      const barMes = document.getElementById('chartBarMes');
-      const btnCat = document.getElementById('btn-barCat');
-      const btnMes = document.getElementById('btn-barMes');
-      if (tipo === 'barCat') {
-        if(barCat) barCat.classList.remove('hidden');
-        if(barMes) barMes.classList.add('hidden');
-        if(btnCat) btnCat.style.background='#3949ab';
-        if(btnMes) btnMes.style.background='rgba(255,255,255,0.15)';
-      } else {
-        if(barMes) barMes.classList.remove('hidden');
-        if(barCat) barCat.classList.add('hidden');
-        if(btnMes) btnMes.style.background='#3949ab';
-        if(btnCat) btnCat.style.background='rgba(255,255,255,0.15)';
-      }
-    }
-
-    function renderGraficos(d) {
-      const cats = Object.entries(d.por_categoria || {}).sort((a,b) => b[1]-a[1]);
-      const meses = Object.entries(d.por_mes || {}).sort((a,b) => a[0].localeCompare(b[0]));
-      const total = d.total_brl || 0;
-      const totalGastos = d.total_gastos || 0;
-
-      const mesLabels = meses.map(([m]) => {
-        const [y,mo] = m.split('-');
-        const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        return nomes[parseInt(mo)-1] + ' ' + y.slice(2);
-      });
-
-      let html = '';
-
-      html += '<div class="chart-total">';
-      html += '<div class="chart-total-label">Total classificado (BRL)</div>';
-      html += '<div class="chart-total-value">R$ ' + total.toFixed(2).replace('.',',') + '</div>';
-      html += '<div class="chart-total-sub">' + totalGastos + ' gasto' + (totalGastos !== 1 ? 's' : '') + ' no historico</div>';
-      html += '</div>';
-
-      if (cats.length > 0) {
-        html += '<div class="cat-rank">';
-        cats.forEach(function(entry) {
-          var cat = entry[0]; var val = entry[1];
-          var pct = total > 0 ? (val/total*100) : 0;
-          var cor = CORES_CAT[cat] || '#9E9E9E';
-          html += '<div class="cat-rank-item">';
-          html += '<div class="cat-rank-name">' + cat + '</div>';
-          html += '<div class="cat-rank-bar-wrap"><div class="cat-rank-bar" style="width:' + pct.toFixed(1) + '%;background:' + cor + '"></div></div>';
-          html += '<div class="cat-rank-val">R$ ' + val.toFixed(2).replace('.',',') + '</div>';
-          html += '</div>';
+    function calcFaturasDados(lista, fechStr) {
+      var fAt = new Date(fechStr+'T12:00:00');
+      var nm = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+      var ciclos = [];
+      for (var off = -2; off <= 1; off++) {
+        var ini = new Date(fAt.getFullYear(), fAt.getMonth()+off, fAt.getDate()+1);
+        var fD = new Date(fAt.getFullYear(), fAt.getMonth()+off+1, fAt.getDate());
+        var m = nm[fD.getMonth()];
+        ciclos.push({
+          inicio: ini.toISOString().slice(0,10), fechamento: fD.toISOString().slice(0,10),
+          label: m.charAt(0).toUpperCase()+m.slice(1)+' '+String(fD.getFullYear()).slice(2),
+          labelFull: m.charAt(0).toUpperCase()+m.slice(1)+' '+fD.getFullYear(),
+          mesAno: fD.getFullYear()+'-'+String(fD.getMonth()+1).padStart(2,'0'),
+          tipo: off<0?'passada':off===0?'atual':'futura', cats:{}, total:0
         });
-        html += '</div>';
-
-        html += '<div id="grafico-btns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;width:100%;max-width:480px;">';
-        html += '<button id="btn-barCat" style="padding:7px 14px;border-radius:20px;border:none;background:#3949ab;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Categoria</button>';
-        html += '<button id="btn-barMes" style="padding:7px 14px;border-radius:20px;border:none;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Mes</button>';
-        html += '</div>';
-        html += '<div class="chart-card" id="chartBarCat"><div class="chart-title">Gastos por categoria</div><canvas id="canvasBarCat" height="300"></canvas></div>';
-        html += '<div class="chart-card hidden" id="chartBarMes"><div class="chart-title">Gastos por mes</div><canvas id="canvasBarras" height="200"></canvas></div>';
       }
-
-      document.getElementById('graficosContent').innerHTML = html || '<div class="hist-loading">Nenhum dado.</div>';
-
-      // Wire up chart selector buttons after DOM update
-      var btnCat = document.getElementById('btn-barCat');
-      var btnMes = document.getElementById('btn-barMes');
-      if (btnCat) btnCat.addEventListener('click', function() { mostrarGrafico('barCat'); });
-      if (btnMes) btnMes.addEventListener('click', function() { mostrarGrafico('barMes'); });
-
-      if (cats.length > 0) {
-        var ctxP = document.getElementById('canvasBarCat');
-        if (ctxP) {
-          _chartPizza = new Chart(ctxP, {
-            type: 'bar',
-            data: {
-              labels: cats.map(function(e) { return e[0]; }),
-              datasets: [{ label: 'R$', data: cats.map(function(e) { return e[1]; }), backgroundColor: cats.map(function(e) { return CORES_CAT[e[0]] || '#9E9E9E'; }), borderRadius: 6 }]
-            },
-            options: {
-              responsive: true, indexAxis: 'y',
-              plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: function(ctx) { return ' R$ ' + ctx.parsed.x.toFixed(2).replace('.',',') + ' (' + (ctx.parsed.x/total*100).toFixed(1) + '%)'; } } }
-              },
-              scales: { x: { ticks: { callback: function(v) { return 'R$'+v.toFixed(0); } } } }
+      lista.forEach(function(g) {
+        if (!g.data_compra) return;
+        var cat = g.categoria||'sem_categoria', vt = parseFloat(g.valor||0), pt = parseInt(g.parcelas_total||1), vp = pt>1?vt/pt:vt;
+        for (var p=1; p<=pt; p++) {
+          var bd = new Date(g.data_compra+'T12:00:00'), pd = new Date(bd.getFullYear(),bd.getMonth()+(p-1),bd.getDate());
+          var pds = pd.toISOString().slice(0,10);
+          for (var i=0; i<ciclos.length; i++) {
+            if (pds>=ciclos[i].inicio && pds<=ciclos[i].fechamento) {
+              if(!ciclos[i].cats[cat]) ciclos[i].cats[cat]=0;
+              ciclos[i].cats[cat]+=vp; ciclos[i].total+=vp; break;
             }
-          });
+          }
         }
-      }
-
-      if (meses.length > 1) {
-        var ctxB = document.getElementById('canvasBarras');
-        if (ctxB) {
-          _chartBarras = new Chart(ctxB, {
-            type: 'bar',
-            data: {
-              labels: mesLabels,
-              datasets: [{ label: 'Total (R$)', data: meses.map(function(e) { return e[1]; }), backgroundColor: '#3F51B5', borderRadius: 6 }]
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { display: false } },
-              scales: { y: { ticks: { callback: function(v) { return 'R$' + v.toFixed(0); } } } }
-            }
-          });
-        }
-      }
+      });
+      return ciclos;
     }
+    function renderGraficosUI(faturas) {
+      var ai = faturas.findIndex(function(f){return f.tipo==='atual';}); if(ai<0) ai=0;
+      var html = '<div id="graf-btns" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;width:100%;max-width:480px;">';
+      faturas.forEach(function(f,i) {
+        html += '<button data-idx="'+i+'" style="padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';
+      });
+      html += '</div><div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div>';
+      html += '<div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div>';
+      document.getElementById('graficosContent').innerHTML = html;
+      document.querySelectorAll('[data-idx]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var idx = parseInt(btn.getAttribute('data-idx'));
+          document.querySelectorAll('[data-idx]').forEach(function(b){b.style.background='rgba(255,255,255,0.15)';});
+          btn.style.background='#3949ab';
+          renderGraficoFatura(faturas[idx]);
+        });
+      });
+      renderGraficoFatura(faturas[ai]);
+    }
+    function renderGraficoFatura(fatura) {
+      var tb = document.getElementById('graf-total');
+      if(tb) tb.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Fatura '+fatura.labelFull+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+fatura.total.toFixed(2).replace('.',',')+'</div>';
+      if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
+      var cats = Object.entries(fatura.cats).sort(function(a,b){return b[1]-a[1];});
+      if(cats.length===0){var c=document.getElementById('canvasGraf');if(c)c.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhum gasto nesta fatura.</div>';return;}
+      var total=fatura.total, labels=cats.map(function(e){return e[0];}), valores=cats.map(function(e){return e[1];}), cores=cats.map(function(e){return CORES_CAT[e[0]]||'#9E9E9E';});
+      var lp = {id:'lp',afterDraw:function(chart){
+        var ctx=chart.ctx; ctx.save();
+        chart.data.datasets.forEach(function(ds,di){
+          chart.getDatasetMeta(di).data.forEach(function(bar,i){
+            var val=ds.data[i], pct=total>0?Math.round(val/total*100):0;
+            ctx.fillStyle='#333'; ctx.font='bold 11px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+            ctx.fillText('R$ '+val.toFixed(2).replace('.',',')+'  '+pct+'%', bar.x+6, bar.y);
+          });
+        });
+        ctx.restore();
+      }};
+      var ctx=document.getElementById('canvasGraf'); if(!ctx) return;
+      _chartAtivo = new Chart(ctx, {
+        type:'bar', plugins:[lp],
+        data:{labels:labels,datasets:[{data:valores,backgroundColor:cores,borderRadius:4,barThickness:26}]},
+        options:{responsive:true,indexAxis:'y',layout:{padding:{right:140}},
+          plugins:{legend:{display:false},tooltip:{enabled:false}},
+          scales:{x:{display:false,grid:{display:false}},y:{display:true,grid:{display:false},border:{display:false},ticks:{color:'#444',font:{size:12,weight:'600'},padding:4}}}
+        }
+      });
+    }
+    function mostrarGrafico(tipo) {}
 
     function fecharGraficos() {
       if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
