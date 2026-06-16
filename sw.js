@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanmm-v3';
+const CACHE_NAME = 'finanmm-v4';
 const API_BASE = 'https://web-production-09718.up.railway.app';
 
 const ASSETS = [
