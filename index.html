@@ -390,7 +390,7 @@
       const m = msg.match(/VALOR DE (USD|EUR|GBP|ARS|CLP|UYU|MXN|COP|PEN)/i);
       return m ? m[1].toUpperCase() : 'BRL';
     }
-    const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'€',GBP:'£',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
+    const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'â¬',GBP:'Â£',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
     function formatarValor(v, moeda) {
       if (typeof v !== 'number') return 'R$ -';
       const s = SIMBOLOS_MOEDA[moeda || 'BRL'] || moeda || 'R$';
@@ -442,7 +442,7 @@
       try {
         const res = await fetch(API + '/gastos/' + g.id + '/confirmar?categoria=' + encodeURIComponent(cat), { method:'PATCH' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast(g.estabelecimento + ' → ' + cat, 'success');
+        showToast(g.estabelecimento + ' â ' + cat, 'success');
         indexAtual++;
         if (indexAtual < gastos.length) renderGasto(gastos[indexAtual]);
         else mostrarTela('screenVazio');
@@ -468,7 +468,7 @@
           return '<div class="hist-item" onclick="abrirReclass(\''+g.id+'\',\''+nomeEsc+'\',\''+catLabel+'\',\''+valorFmt+'\')">' +
             '<div class="hist-item-left">' +
             '<div class="hist-item-nome">' + (g.estabelecimento||'-') + '</div>' +
-            '<div class="hist-item-data">' + dataFmt + ' · ' + valorFmt + '</div>' +
+            '<div class="hist-item-data">' + dataFmt + ' Â· ' + valorFmt + '</div>' +
             '</div>' +
             '<div class="hist-item-cat">' + catLabel + '</div>' +
             '</div>';
@@ -486,7 +486,7 @@
     function abrirReclass(id, nome, catAtual, valor) {
       gastoSelecionadoId = id;
       document.getElementById('modalNome').textContent = nome;
-      document.getElementById('modalInfo').textContent = valor + ' · Atual: ' + catAtual;
+      document.getElementById('modalInfo').textContent = valor + ' Â· Atual: ' + catAtual;
       document.getElementById('modalReclass').classList.remove('hidden');
     }
 
@@ -600,70 +600,78 @@
         return nomes[parseInt(mo)-1] + ' ' + y.slice(2);
       });
 
-      const html = `
-        <div class="chart-total">
-          <div class="chart-total-label">Total classificado (BRL)</div>
-          <div class="chart-total-value">R$ ${total.toFixed(2).replace('.',',')}</div>
-          <div class="chart-total-sub">${totalGastos} gasto${totalGastos !== 1 ? 's' : ''} no historico</div>
-        </div>
+      let html = '';
 
-        ${cats.length > 0 ? `
-        <div class="cat-rank">
-          ${cats.map(([cat, val]) => {
-            const pct = total > 0 ? (val/total*100) : 0;
-            const cor = CORES_CAT[cat] || '#9E9E9E';
-            return `<div class="cat-rank-item">
-              <div class="cat-rank-name">${cat}</div>
-              <div class="cat-rank-bar-wrap"><div class="cat-rank-bar" style="width:${pct.toFixed(1)}%;background:${cor}"></div></div>
-              <div class="cat-rank-val">R$ ${val.toFixed(2).replace('.',',')}</div>
-            </div>`;
-          }).join('')}
-        </div>
-        ` : ''}
+      html += '<div class="chart-total">';
+      html += '<div class="chart-total-label">Total classificado (BRL)</div>';
+      html += '<div class="chart-total-value">R$ ' + total.toFixed(2).replace('.',',') + '</div>';
+      html += '<div class="chart-total-sub">' + totalGastos + ' gasto' + (totalGastos !== 1 ? 's' : '') + ' no historico</div>';
+      html += '</div>';
 
-        ${cats.length > 0 ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;width:100%;max-width:480px;">
-          <button onclick="mostrarGrafico('barCat')" id="btn-barCat" style="padding:7px 14px;border-radius:20px;border:none;background:#3949ab;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Categoria</button>
-          <button onclick="mostrarGrafico('barMes')" id="btn-barMes" style="padding:7px 14px;border-radius:20px;border:none;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Mes</button>
-        </div>
-        <div class="chart-card" id="chartBarCat"><div class="chart-title">Gastos por categoria</div><canvas id="canvasBarCat" height="300"></canvas></div>
-        <div class="chart-card hidden" id="chartBarMes"><div class="chart-title">Gastos por mes</div><canvas id="canvasBarras" height="200"></canvas></div>` : ''}
-
-      // Bar chart por categoria (substituindo pizza)
       if (cats.length > 0) {
-        const ctxP = document.getElementById('canvasBarCat');
+        html += '<div class="cat-rank">';
+        cats.forEach(function(entry) {
+          var cat = entry[0]; var val = entry[1];
+          var pct = total > 0 ? (val/total*100) : 0;
+          var cor = CORES_CAT[cat] || '#9E9E9E';
+          html += '<div class="cat-rank-item">';
+          html += '<div class="cat-rank-name">' + cat + '</div>';
+          html += '<div class="cat-rank-bar-wrap"><div class="cat-rank-bar" style="width:' + pct.toFixed(1) + '%;background:' + cor + '"></div></div>';
+          html += '<div class="cat-rank-val">R$ ' + val.toFixed(2).replace('.',',') + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+
+        html += '<div id="grafico-btns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;width:100%;max-width:480px;">';
+        html += '<button id="btn-barCat" style="padding:7px 14px;border-radius:20px;border:none;background:#3949ab;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Categoria</button>';
+        html += '<button id="btn-barMes" style="padding:7px 14px;border-radius:20px;border:none;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Por Mes</button>';
+        html += '</div>';
+        html += '<div class="chart-card" id="chartBarCat"><div class="chart-title">Gastos por categoria</div><canvas id="canvasBarCat" height="300"></canvas></div>';
+        html += '<div class="chart-card hidden" id="chartBarMes"><div class="chart-title">Gastos por mes</div><canvas id="canvasBarras" height="200"></canvas></div>';
+      }
+
+      document.getElementById('graficosContent').innerHTML = html || '<div class="hist-loading">Nenhum dado.</div>';
+
+      // Wire up chart selector buttons after DOM update
+      var btnCat = document.getElementById('btn-barCat');
+      var btnMes = document.getElementById('btn-barMes');
+      if (btnCat) btnCat.addEventListener('click', function() { mostrarGrafico('barCat'); });
+      if (btnMes) btnMes.addEventListener('click', function() { mostrarGrafico('barMes'); });
+
+      if (cats.length > 0) {
+        var ctxP = document.getElementById('canvasBarCat');
         if (ctxP) {
           _chartPizza = new Chart(ctxP, {
             type: 'bar',
             data: {
-              labels: cats.map(([c]) => c),
-              datasets: [{ label: 'R$', data: cats.map(([,v]) => v), backgroundColor: cats.map(([c]) => CORES_CAT[c] || '#9E9E9E'), borderRadius: 6 }]
+              labels: cats.map(function(e) { return e[0]; }),
+              datasets: [{ label: 'R$', data: cats.map(function(e) { return e[1]; }), backgroundColor: cats.map(function(e) { return CORES_CAT[e[0]] || '#9E9E9E'; }), borderRadius: 6 }]
             },
             options: {
               responsive: true, indexAxis: 'y',
               plugins: {
                 legend: { display: false },
-                tooltip: { callbacks: { label: (ctx) => ' R$ ' + ctx.parsed.x.toFixed(2).replace('.',',') + ' (' + (ctx.parsed.x/total*100).toFixed(1) + '%)' } }
+                tooltip: { callbacks: { label: function(ctx) { return ' R$ ' + ctx.parsed.x.toFixed(2).replace('.',',') + ' (' + (ctx.parsed.x/total*100).toFixed(1) + '%)'; } } }
               },
-              scales: { x: { ticks: { callback: v => 'R$'+v.toFixed(0) } } }
+              scales: { x: { ticks: { callback: function(v) { return 'R$'+v.toFixed(0); } } } }
             }
           });
         }
       }
 
-      // Barras por mês
       if (meses.length > 1) {
-        const ctxB = document.getElementById('canvasBarras');
+        var ctxB = document.getElementById('canvasBarras');
         if (ctxB) {
           _chartBarras = new Chart(ctxB, {
             type: 'bar',
             data: {
               labels: mesLabels,
-              datasets: [{ label: 'Total (R$)', data: meses.map(([,v]) => v), backgroundColor: '#3F51B5', borderRadius: 6 }]
+              datasets: [{ label: 'Total (R$)', data: meses.map(function(e) { return e[1]; }), backgroundColor: '#3F51B5', borderRadius: 6 }]
             },
             options: {
               responsive: true,
               plugins: { legend: { display: false } },
-              scales: { y: { ticks: { callback: v => 'R$' + v.toFixed(0) } } }
+              scales: { y: { ticks: { callback: function(v) { return 'R$' + v.toFixed(0); } } } }
             }
           });
         }
@@ -756,7 +764,7 @@
     }
 
     async function excluirGasto(id) {
-      if (!confirm('Excluir este lançamento?')) return;
+      if (!confirm('Excluir este lanÃ§amento?')) return;
       try {
         const r = await fetch(API + '/gastos/' + id, {method:'DELETE'});
         if (!r.ok) throw new Error('Erro ' + r.status);
@@ -768,7 +776,7 @@
       const novoStr = prompt('Novo valor (R$):', String(valorAtual).replace('.',','));
       if (novoStr === null) return;
       const novo = parseFloat(novoStr.replace(',','.'));
-      if (isNaN(novo) || novo <= 0) { alert('Valor inválido'); return; }
+      if (isNaN(novo) || novo <= 0) { alert('Valor invÃ¡lido'); return; }
       try {
         const r = await fetch(API + '/gastos/' + id, {
           method:'PATCH',
@@ -803,9 +811,9 @@
       const desc = (document.getElementById('add-desc-'+mesAno)||{}).value||'';
       const valStr = (document.getElementById('add-val-'+mesAno)||{}).value||'';
       const cat = ((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';
-      if (!desc.trim()) { alert('Informe a descrição'); return; }
+      if (!desc.trim()) { alert('Informe a descriÃ§Ã£o'); return; }
       const val = parseFloat(valStr.replace(',','.'));
-      if (isNaN(val) || val <= 0) { alert('Informe um valor válido'); return; }
+      if (isNaN(val) || val <= 0) { alert('Informe um valor vÃ¡lido'); return; }
       try {
         const r = await fetch(API + '/gastos/manual', {
           method:'POST',
