@@ -1,404 +1,8 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<meta name="theme-color" content="#1a237e" />
-<meta name="description" content="Finan$M$ - Classificacao de gastos de cartao via SMS" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Finan$M$" />
-<title>Finan$M$ - Gastos</title>
-<link rel="manifest" href="manifest.json" />
-<link rel="apple-touch-icon" href="icon-192.png" />
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-background: #1a237e;
-min-height: 100vh;
-min-height: 100dvh;
-display: flex;
-flex-direction: column;
-overflow-x: hidden;
-}
-.app-header {
-display: flex;
-justify-content: space-between;
-align-items: center;
-padding: 12px 16px;
-background: rgba(0,0,0,0.2);
-position: sticky;
-top: 0;
-z-index: 100;
-gap: 8px;
-}
-.app-title { font-size: clamp(18px,5vw,24px); font-weight: 900; color: #fff; letter-spacing: 1px; }
-.header-btns { display: flex; gap: 8px; align-items: center; }
-.btn-notif, .btn-historico {
-background: rgba(255,255,255,0.15);
-color: #fff; border: none;
-padding: 8px 12px; border-radius: 20px;
-font-size: 13px; cursor: pointer;
-white-space: nowrap; font-weight: 600;
-}
-.btn-historico { background: rgba(255,255,255,0.1); }
-.state-screen {
-flex: 1; display: flex; flex-direction: column;
-align-items: center; justify-content: center;
-padding: 24px 16px; text-align: center; color: #fff; gap: 16px;
-}
-.hidden { display: none !important; }
-.state-icon { font-size: clamp(40px,12vw,64px); }
-.state-title { font-size: clamp(18px,5vw,24px); font-weight: 700; }
-.state-subtitle { font-size: clamp(13px,3.5vw,16px); opacity: 0.8; max-width: 300px; line-height: 1.4; }
-.btn-reload {
-background: #ff7043; color: #fff; border: none;
-padding: 14px 32px; border-radius: 30px;
-font-size: 16px; font-weight: 700; cursor: pointer;
-min-width: 200px;
-}
-.spinner {
-width: 48px; height: 48px;
-border: 4px solid rgba(255,255,255,0.3);
-border-top-color: #fff; border-radius: 50%;
-animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-#screenGasto {
-flex: 1; display: flex; flex-direction: column;
-align-items: center; justify-content: flex-start;
-padding: 16px; overflow-y: auto;
-}
-.gasto-card {
-background: #fff; border-radius: 20px; padding: 20px;
-width: 100%; max-width: 480px;
-box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 16px;
-}
-.gasto-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #999; text-transform: uppercase; margin-bottom: 8px; }
-.gasto-nome { font-size: clamp(20px,6vw,28px); font-weight: 800; color: #1a237e; margin-bottom: 4px; line-height: 1.2; word-break: break-word; }
-.gasto-nome-orig { font-size: 12px; color: #aaa; margin-bottom: 4px; word-break: break-word; }
-.gasto-valor { font-size: clamp(22px,7vw,32px); font-weight: 900; color: #e53935; text-align: right; }
-.gasto-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.gasto-meta { display: flex; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
-.gasto-meta-item { display: flex; flex-direction: column; gap: 2px; }
-.gasto-meta-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #bbb; text-transform: uppercase; }
-.gasto-meta-value { font-size: 14px; font-weight: 600; color: #333; }
-.gasto-apelido-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
-.gasto-apelido-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #bbb; text-transform: uppercase; margin-bottom: 4px; }
-.gasto-apelido-input { width: 100%; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 7px 10px; font-size: 14px; color: #333; outline: none; }
-.gasto-apelido-input:focus { border-color: #3949ab; }
-.progress-text { color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 600; text-align: center; }
-.cat-label { color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; text-align: center; }
-.cat-grid {
-display: grid; grid-template-columns: 1fr 1fr;
-gap: 10px; width: 100%; max-width: 480px; padding-bottom: 16px;
-}
-.btn-cat {
-background: #f5f5f5; border: 2px solid transparent;
-border-radius: 14px; padding: 14px 8px;
-font-size: clamp(13px,3.5vw,15px); font-weight: 700;
-cursor: pointer; min-height: 52px;
-display: flex; align-items: center; justify-content: center;
-text-align: center; line-height: 1.2;
--webkit-tap-highlight-color: transparent;
-transition: transform 0.1s;
-}
-.btn-cat:active { transform: scale(0.96); }
-.btn-cat.alimentacao { color:#2e7d32; background:#e8f5e9; border-color:#a5d6a7; }
-.btn-cat.assinaturas { color:#1565c0; background:#e3f2fd; border-color:#90caf9; }
-.btn-cat.bares { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
-.btn-cat.caridade { color:#880e4f; background:#fce4ec; border-color:#f48fb1; }
-.btn-cat.empresa { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
-.btn-cat.entretenimento { color:#4a148c; background:#f3e5f5; border-color:#ce93d8; }
-.btn-cat.mercado { color:#004d40; background:#e0f2f1; border-color:#80cbc4; }
-.btn-cat.mobilidade { color:#0d47a1; background:#e3f2fd; border-color:#90caf9; }
-.btn-cat.presentes { color:#bf360c; background:#fbe9e7; border-color:#ffab91; }
-.btn-cat.reembolsavel { color:#1b5e20; background:#f1f8e9; border-color:#aed581; }
-.btn-cat.saude { color:#b71c1c; background:#ffebee; border-color:#ef9a9a; }
-.btn-cat.servicos { color:#37474f; background:#eceff1; border-color:#b0bec5; }
-.btn-cat.vestuario { color:#e91e63; background:#fce4ec; border-color:#f48fb1; }
-#screenHistorico {
-flex: 1; display: flex; flex-direction: column;
-align-items: center; padding: 16px; overflow-y: auto; color: #fff;
-}
-.hist-header { display:flex; align-items:center; gap:12px; width:100%; max-width:480px; margin-bottom:16px; }
-.hist-title { font-size:20px; font-weight:800; flex:1; }
-.btn-back {
-background:rgba(255,255,255,0.15); color:#fff; border:none;
-padding:8px 16px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer;
-}
-.hist-list { display:flex; flex-direction:column; gap:10px; width:100%; max-width:480px; }
-.hist-item {
-background:#fff; border-radius:14px; padding:14px 16px;
-display:flex; justify-content:space-between; align-items:center;
-gap:10px; cursor:pointer;
-}
-.hist-item:active { transform: scale(0.98); }
-.hist-item-left { flex:1; min-width:0; }
-.hist-item-nome { font-size:15px; font-weight:700; color:#1a237e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hist-item-nome-orig { font-size:11px; color:#aaa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
-.hist-item-data { font-size:11px; color:#999; margin-top:2px; }
-.hist-item-cat { font-size:11px; font-weight:700; padding:4px 10px; border-radius:12px; background:#e8eaf6; color:#3949ab; white-space:nowrap; flex-shrink:0; }
-.hist-loading { color:rgba(255,255,255,0.7); text-align:center; padding:32px; }
-.modal-overlay {
-position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200;
-display:flex; align-items:flex-end; justify-content:center;
-}
-.modal-overlay.hidden { display:none !important; }
-.modal-box {
-background:#1a237e; border-radius:24px 24px 0 0;
-padding:20px 16px 32px; width:100%; max-width:480px;
-max-height:80vh; overflow-y:auto;
-}
-.modal-drag { width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px; }
-.modal-title { color:#fff; font-size:16px; font-weight:700; margin-bottom:4px; }
-.modal-nome-orig { color:rgba(255,255,255,0.5); font-size:11px; margin-bottom:4px; }
-.modal-sub { color:rgba(255,255,255,0.6); font-size:13px; margin-bottom:8px; }
-.modal-apelido-wrap { margin-bottom:14px; }
-.modal-apelido-label { color:rgba(255,255,255,0.7); font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
-.modal-apelido-row { display:flex; gap:8px; align-items:center; }
-.modal-apelido-input { flex:1; background:rgba(255,255,255,0.15); color:#fff; border:1.5px solid rgba(255,255,255,0.3); border-radius:10px; padding:8px 12px; font-size:14px; outline:none; }
-.modal-apelido-input::placeholder { color:rgba(255,255,255,0.4); }
-.modal-apelido-input:focus { border-color:#fff; }
-.btn-salvar-apelido { background:#4CAF50; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
-#toast {
-position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
-background:#333; color:#fff; padding:12px 24px; border-radius:24px;
-font-size:14px; font-weight:600; transition:transform 0.3s ease;
-z-index:300; white-space:nowrap; pointer-events:none;
-}
-#toast.show { transform:translateX(-50%) translateY(0); }
-#toast.success { background:#2e7d32; }
-#toast.error { background:#c62828; }
-
-#screenGraficos {
-flex: 1; display: flex; flex-direction: column;
-align-items: center; padding: 16px; overflow-y: auto; color: #fff;
-}
-.chart-card {
-background: #fff; border-radius: 16px; padding: 16px;
-width: 100%; max-width: 480px; margin-bottom: 16px;
-box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-}
-.chart-title {
-font-size: 13px; font-weight: 700; letter-spacing: 1px;
-color: #999; text-transform: uppercase; margin-bottom: 12px;
-}
-.chart-total {
-background: rgba(255,255,255,0.1); border-radius: 16px;
-padding: 20px; width: 100%; max-width: 480px;
-margin-bottom: 16px; text-align: center;
-}
-.chart-total-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-.chart-total-value { font-size: 32px; font-weight: 900; color: #fff; }
-.chart-total-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
-.cat-rank { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px; margin-bottom: 16px; }
-.cat-rank-item { display: flex; align-items: center; gap: 10px; }
-.cat-rank-bar-wrap { flex: 1; background: rgba(255,255,255,0.1); border-radius: 8px; height: 8px; overflow: hidden; }
-.cat-rank-bar { height: 100%; border-radius: 8px; background: #fff; transition: width 0.5s ease; }
-.cat-rank-name { width: 110px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); text-transform: capitalize; }
-.cat-rank-val { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
-
-.fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
-.fatura-card.atual { border-left:4px solid #3949ab; }
-.fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
-.fatura-card.passada { border-left:4px solid #4caf50; }
-.fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
-.fatura-titulo { font-size:14px;font-weight:700;color:#333; }
-.fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
-.fatura-badge.atual { background:#3949ab;color:#fff; }
-.fatura-badge.futura { background:#eee;color:#999; }
-.fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
-.fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
-.fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
-.fatura-item:last-child { border-bottom:none; }
-.fatura-item-nome-wrap { flex:1;padding-right:8px; }
-.fatura-item-nome { color:#1a237e;font-weight:700;font-size:13px;display:block; }
-.fatura-item-nome-orig { color:#aaa;font-size:10px;display:block; }
-.fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
-.fatura-item-valor { color:#333;font-weight:700;white-space:nowrap;cursor:pointer; }
-.fatura-item-valor:hover { color:#3949ab;text-decoration:underline; }
-.fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
-.fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
-.fatura-cat-group { margin-bottom:8px; }
-.fatura-cat-header { display:flex;justify-content:space-between;align-items:center;padding:6px 0 4px 0;border-bottom:1px solid #f0f0f0; }
-.fatura-cat-name { font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#555;padding-left:6px; }
-.fatura-cat-subtotal { font-size:12px;font-weight:700;color:#444; }
-.fatura-item-actions { display:flex;gap:4px;align-items:center;flex-shrink:0; }
-.btn-excluir { background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;border-radius:4px;transition:color 0.2s;line-height:1; }
-.btn-excluir:hover { color:#e53935; }
-.fatura-add-btn { display:flex;align-items:center;gap:6px;padding:8px 0 2px 0;margin-top:8px;border-top:1px dashed #e0e0e0;color:#3949ab;font-size:12px;font-weight:700;cursor:pointer;background:none;border:none;width:100%; }
-.fatura-add-form { margin-top:8px;padding:10px;background:#f9f9f9;border-radius:8px;display:none; }
-.fatura-add-form.visible { display:block; }
-.fatura-add-row { display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end; }
-.fatura-add-field { display:flex;flex-direction:column;gap:3px;flex:1;min-width:80px; }
-.fatura-add-field label { font-size:10px;color:#888;font-weight:600;text-transform:uppercase; }
-.fatura-add-field input { border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px; }
-.btn-add-salvar { background:#3949ab;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;align-self:flex-end; }
-.btn-add-salvar:hover { background:#283593; }
-
-</style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-</head>
-<body>
-<header class="app-header">
-<div class="app-title">Finan$M$</div>
-<div class="header-btns">
-<button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
-<button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
-<button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
-<button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">Notificacoes</button>
-</div>
-</header>
-
-<div id="screenLoading" class="state-screen">
-<div class="spinner"></div>
-<div class="state-subtitle">Buscando gastos...</div>
-</div>
-
-<div id="screenVazio" class="state-screen hidden">
-<div class="state-icon">OK</div>
-<div class="state-title">Tudo em dia!</div>
-<div class="state-subtitle">Nenhum gasto pendente de classificacao.</div>
-<button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button>
-<button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button>
-</div>
-
-<div id="screenErro" class="state-screen hidden">
-<div class="state-icon">Erro</div>
-<div id="erroMsg" class="state-title">Erro de conexao</div>
-<div class="state-subtitle">Nao foi possivel conectar ao servidor.</div>
-<button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button>
-</div>
-
-<div id="screenGasto" class="hidden" style="width:100%;max-width:480px;margin:0 auto;">
-<div class="gasto-card">
-<div class="gasto-label">GASTO PENDENTE</div>
-<div class="gasto-top">
-<div>
-<div id="gastoEstabelecimento" class="gasto-nome">-</div>
-<div id="gastoNomeOrig" class="gasto-nome-orig"></div>
-</div>
-<div id="gastoValor" class="gasto-valor">-</div>
-</div>
-<div class="gasto-meta">
-<div class="gasto-meta-item">
-<span class="gasto-meta-label">DATA</span>
-<span id="gastoData" class="gasto-meta-value">-</span>
-</div>
-<div class="gasto-meta-item">
-<span class="gasto-meta-label">HORA</span>
-<span id="gastoHora" class="gasto-meta-value">-</span>
-</div>
-<div class="gasto-meta-item">
-<span class="gasto-meta-label">CARTAO</span>
-<span id="gastoCartao" class="gasto-meta-value">****</span>
-</div>
-</div>
-<div class="gasto-apelido-wrap">
-<div class="gasto-apelido-label">Apelido (opcional)</div>
-<input type="text" id="gastoApelidoInput" class="gasto-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" />
-</div>
-</div>
-<div id="progressText" class="progress-text" style="margin-bottom:10px"></div>
-<div class="cat-label" style="margin-bottom:12px">SELECIONE A CATEGORIA</div>
-<div class="cat-grid">
-<button class="btn-cat alimentacao" onclick="confirmarCategoria('alimentacao')">Alimentacao</button>
-<button class="btn-cat assinaturas" onclick="confirmarCategoria('assinaturas')">Assinaturas</button>
-<button class="btn-cat bares" onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
-<button class="btn-cat caridade" onclick="confirmarCategoria('caridade')">Caridade</button>
-<button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
-<button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
-<button class="btn-cat mercado" onclick="confirmarCategoria('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Mobilidade</button>
-<button class="btn-cat presentes" onclick="confirmarCategoria('presentes')">Presentes</button>
-<button class="btn-cat reembolsavel" onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
-<button class="btn-cat saude" onclick="confirmarCategoria('saude')">Saude</button>
-<button class="btn-cat servicos" onclick="confirmarCategoria('servicos')">Servicos</button>
-<button class="btn-cat vestuario" onclick="confirmarCategoria('vestuario')">Vestuario</button>
-</div>
-</div>
-
-<div id="screenHistorico" class="hidden">
-<div class="hist-header">
-<button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button>
-<div class="hist-title">&#128197; Historico</div>
-</div>
-<div id="histList" class="hist-list">
-<div class="hist-loading">Carregando...</div>
-</div>
-</div>
-
-<!-- GRAFICOS -->
-<div id="screenGraficos" class="hidden">
-<div class="hist-header">
-<button class="btn-back" onclick="fecharGraficos()">&#8592; Voltar</button>
-<div class="hist-title">&#128202; Graficos</div>
-</div>
-<div id="graficosContent" style="width:100%;max-width:480px;">
-<div class="hist-loading">Carregando...</div>
-</div>
-</div>
-
-<!-- FATURAS -->
-<div id="screenFaturas" class="hidden">
-<div class="hist-header">
-<button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button>
-<div class="hist-title">&#128196; Faturas</div>
-</div>
-<div style="width:100%;max-width:480px;padding:12px 16px;">
-<div id="faturaConfig" style="background:#f5f5f5;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
-<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px;">Ciclo de Faturamento</div>
-<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-<div style="flex:1;min-width:140px;">
-<label style="font-size:11px;color:#666;font-weight:600;">Fechamento atual</label>
-<input type="date" id="inputFechamento" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;color:#333;" onchange="salvarFechamento()">
-</div>
-</div>
-<div id="faturaVencimento" style="font-size:12px;color:#3949ab;font-weight:600;margin-top:6px;"></div>
-</div>
-<div id="faturaList" style="display:flex;flex-direction:column;gap:12px;">
-<div class="hist-loading">Configure o fechamento acima.</div>
-</div>
-</div>
-</div>
-
-<div id="modalReclass" class="modal-overlay hidden" onclick="fecharModal(event)">
-<div class="modal-box">
-<div class="modal-drag"></div>
-<div class="modal-title" id="modalNome">-</div>
-<div class="modal-nome-orig" id="modalNomeOrig"></div>
-<div class="modal-sub" id="modalInfo">-</div>
-<div class="modal-apelido-wrap">
-<div class="modal-apelido-label">Apelido do estabelecimento</div>
-<div class="modal-apelido-row">
-<input type="text" id="modalApelidoInput" class="modal-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" />
-<button class="btn-salvar-apelido" onclick="salvarApelidoModal()">Salvar</button>
-</div>
-</div>
-<div class="cat-grid">
-<button class="btn-cat alimentacao" onclick="reclassificar('alimentacao')">Alimentacao</button>
-<button class="btn-cat assinaturas" onclick="reclassificar('assinaturas')">Assinaturas</button>
-<button class="btn-cat bares" onclick="reclassificar('bares')">Bares/Restaurantes</button>
-<button class="btn-cat caridade" onclick="reclassificar('caridade')">Caridade</button>
-<button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
-<button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
-<button class="btn-cat mercado" onclick="reclassificar('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Mobilidade</button>
-<button class="btn-cat presentes" onclick="reclassificar('presentes')">Presentes</button>
-<button class="btn-cat reembolsavel" onclick="reclassificar('reembolsavel')">Reembolsavel</button>
-<button class="btn-cat saude" onclick="reclassificar('saude')">Saude</button>
-<button class="btn-cat servicos" onclick="reclassificar('servicos')">Servicos</button>
-<button class="btn-cat vestuario" onclick="reclassificar('vestuario')">Vestuario</button>
-</div>
-</div>
-</div>
-
-<div id="toast"></div>
+NaN
 <script>
 const API = 'https://web-production-09718.up.railway.app';
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null;
+let _histData = [];
 
 function mostrarTela(id) {
 ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas'].forEach(s => {
@@ -431,7 +35,6 @@ return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
 }
 function formatarHora(h) { return h ? h.substring(0,5) : '-'; }
 
-// Returns display name: apelido if set, otherwise nome_original
 function nomeExibicao(g) {
 return (g.apelido && g.apelido.trim()) ? g.apelido.trim() : (g.estabelecimento || '-');
 }
@@ -486,12 +89,10 @@ const g = gastos[indexAtual];
 if (!g) return;
 const apelidoInput = document.getElementById('gastoApelidoInput').value.trim();
 try {
-// Build URL with optional apelido param
 let url = API + '/gastos/' + g.id + '/confirmar?categoria=' + encodeURIComponent(cat);
 if (apelidoInput) url += '&apelido=' + encodeURIComponent(apelidoInput);
 const res = await fetch(url, { method:'PATCH' });
 if (!res.ok) throw new Error('HTTP ' + res.status);
-// If apelido was entered, save to estabelecimentos table
 if (apelidoInput) {
 await fetch(API + '/estabelecimentos', {
 method: 'POST',
@@ -506,6 +107,15 @@ else mostrarTela('screenVazio');
 } catch(e) { showToast('Erro: ' + e.message, 'error'); }
 }
 
+function clicarHistItem(idx) {
+const g = _histData[idx];
+if (!g) return;
+const nomeExib = nomeExibicao(g);
+const moedaG = extrairMoeda(g.mensagem_original);
+const valorFmt = formatarValor(g.valor, moedaG);
+abrirReclass(g.id, nomeExib, g.categoria || '?', valorFmt, g.estabelecimento || '', g.apelido || '');
+}
+
 async function abrirHistorico() {
 mostrarTela('screenHistorico');
 document.getElementById('histList').innerHTML = '<div class="hist-loading">Carregando...</div>';
@@ -513,21 +123,18 @@ try {
 const res = await fetch(API + '/gastos/confirmados');
 if (!res.ok) throw new Error('HTTP ' + res.status);
 const data = await res.json();
+_histData = data || [];
 if (!data || data.length === 0) {
 document.getElementById('histList').innerHTML = '<div class="hist-loading">Nenhum gasto classificado ainda.</div>';
 return;
 }
-document.getElementById('histList').innerHTML = data.map(g => {
-const idEsc = g.id;
+document.getElementById('histList').innerHTML = data.map(function(g, idx) {
 const nomeExib = nomeExibicao(g);
-const nomeOrigEsc = (g.estabelecimento||'').replace(/"/g,'&quot;');
-const nomeExibEsc = nomeExib.replace(/"/g,'&quot;');
-const apelidoEsc = (g.apelido||'').replace(/"/g,'&quot;');
 const catLabel = g.categoria || '?';
 const moedaG = extrairMoeda(g.mensagem_original); const valorFmt = formatarValor(g.valor, moedaG);
 const dataFmt = formatarData(g.data_compra);
 const hasApelido = g.apelido && g.apelido.trim();
-return '<div class="hist-item" onclick="abrirReclass('' + idEsc + '','' + nomeExibEsc.replace(/'/g,"\'") + '','' + catLabel + '','' + valorFmt + '','' + nomeOrigEsc.replace(/'/g,"\'") + '','' + apelidoEsc.replace(/'/g,"\'") + '')">' +
+return '<div class="hist-item" onclick="clicarHistItem(' + idx + ')">' +
 '<div class="hist-item-left">' +
 '<div class="hist-item-nome">' + nomeExib + '</div>' +
 (hasApelido ? '<div class="hist-item-nome-orig">' + (g.estabelecimento||'') + '</div>' : '') +
@@ -576,21 +183,17 @@ const apelido = document.getElementById('modalApelidoInput').value.trim();
 const nomeOrig = gastoSelecionadoNomeOrig || '';
 if (!apelido) { showToast('Digite um apelido', 'error'); return; }
 try {
-// Patch apelido on this gasto
 await fetch(API + '/gastos/' + gastoSelecionadoId + '/confirmar?categoria=__keep__&apelido=' + encodeURIComponent(apelido), {method:'PATCH'});
-// Save/update in estabelecimentos and propagate to all gastos with same nome_original
 await fetch(API + '/estabelecimentos', {
 method: 'POST',
 headers: {'Content-Type':'application/json'},
 body: JSON.stringify({nome_original: nomeOrig, apelido: apelido, categoria_padrao: ''})
 });
 showToast('Apelido salvo: ' + apelido, 'success');
-// Update display name in modal
 document.getElementById('modalNome').textContent = apelido;
 const origEl = document.getElementById('modalNomeOrig');
 origEl.textContent = nomeOrig;
 origEl.style.display = '';
-// Refresh history
 await abrirHistorico();
 document.getElementById('modalReclass').classList.add('hidden');
 gastoSelecionadoId = null;
@@ -763,6 +366,7 @@ else mostrarTela('screenVazio');
 }
 
 // ===== FATURAS =====
+let _faturasCiclos = [];
 
 async function abrirFaturas() {
 mostrarTela('screenFaturas');
@@ -860,14 +464,15 @@ carregarFaturas(document.getElementById('inputFechamento').value);
 } catch(e) { alert('Erro ao editar: ' + e.message); }
 }
 
-async function moverFatura(gastoId, mesAtual) {
+async function moverFatura(gastoId, cicloIdx) {
+var c = _faturasCiclos[cicloIdx];
+if (!c) return;
+var mesAtual = c.mesAno;
 var parts = mesAtual.split('-');
 var ano = parseInt(parts[0]); var mes = parseInt(parts[1]);
 var mesAnt = mes === 1 ? (ano-1)+'-12' : ano+'-'+String(mes-1).padStart(2,'0');
 var mesProx = mes === 12 ? (ano+1)+'-01' : ano+'-'+String(mes+1).padStart(2,'0');
-var escolha = confirm('Mover para qual fatura?
-OK = Anterior ('+mesAnt+')
-Cancelar = Proxima ('+mesProx+')');
+var escolha = confirm('Mover para qual fatura? OK = Anterior ('+mesAnt+')  Cancelar = Proxima ('+mesProx+')');
 var novoMes = escolha ? mesAnt : mesProx;
 try {
 var r = await fetch(API + '/gastos/' + gastoId + '/fatura', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mes_ano: novoMes})});
@@ -906,19 +511,19 @@ for (let offset = -2; offset <= 1; offset++) {
 const inicioBase = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate() + 1);
 const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset + 1, fAtual.getDate());
 const vencD = new Date(fechD.getFullYear(), fechD.getMonth(), 25);
-const labelD = fechD;
 ciclos.push({
 inicio: inicioBase.toISOString().slice(0,10),
 fechamento: fechD.toISOString().slice(0,10),
 vencimento: vencD.toISOString().slice(0,10),
-label: labelD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+label: fechD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
 mesAno: fechD.getFullYear()+'-'+String(fechD.getMonth()+1).padStart(2,'0'),
 tipo: offset < 0 ? 'passada' : offset === 0 ? 'atual' : 'futura',
 itens: []
 });
 }
+_faturasCiclos = ciclos;
 
-gastosData.forEach(g => {
+gastosData.forEach(function(g) {
 const dataCp = g.data_compra;
 if (!dataCp) return;
 const parcTotal = parseInt(g.parcelas_total || 1);
@@ -946,14 +551,15 @@ cartao: g.cartao_final || ''
 }
 });
 
-const html = [...ciclos].reverse().map(c => {
+const html = [...ciclos].reverse().map(function(c, reversedIdx) {
+const cicloIdx = ciclos.length - 1 - reversedIdx;
 const totalCiclo = c.itens.reduce((s, i) => s + i.valor, 0);
 const tipoLabel = c.tipo === 'atual' ? 'Atual' : c.tipo === 'futura' ? 'Proxima' : 'Fechada';
 const dtFech = new Date(c.fechamento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
 const dtVenc = new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'});
 
 const porCat = {};
-c.itens.forEach(item => {
+c.itens.forEach(function(item) {
 const cat = item.categoria || 'Sem categoria';
 if (!porCat[cat]) porCat[cat] = { itens: [], subtotal: 0 };
 porCat[cat].itens.push(item);
@@ -966,11 +572,11 @@ let itensHtml = '';
 if (c.itens.length === 0) {
 itensHtml = '<div class="fatura-empty">Nenhum gasto neste periodo.</div>';
 } else {
-itensHtml = catsSorted.map(([cat, catData]) => {
+itensHtml = catsSorted.map(function([cat, catData]) {
 const catColor = CORES_CAT[cat.toLowerCase().replace('/','').replace(' ','_')] || CORES_CAT[cat.toLowerCase()] || '#9E9E9E';
 const catSubtotalFmt = 'R$ ' + catData.subtotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const sorted = catData.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
-const itensDetalhe = sorted.map(item => {
+const itensDetalhe = sorted.map(function(item) {
 const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
 const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
 const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
@@ -983,9 +589,9 @@ return '<div class="fatura-item">' +
 (hasApelido ? '<span class="fatura-item-nome-orig">' + (item.estabelecimento||'') + '</span>' : '') +
 '</div>' +
 '<div class="fatura-item-actions">' +
-'<span class="fatura-item-valor" onclick="editarValor('' + item.id + '',' + item.valor + ')" title="Editar valor">' + valorFmt + '</span>' +
-'<button class="btn-excluir" onclick="moverFatura(''+item.id+'',''+c.mesAno+'');" title="Mover fatura" style="font-size:12px">&#x21C4;</button>' +
-'<button class="btn-excluir" onclick="excluirGasto('' + item.id + '')" title="Excluir">&#x1F5D1;</button>' +
+'<span class="fatura-item-valor" onclick="editarValor(' + JSON.stringify(item.id) + ',' + item.valor + ')" title="Editar valor">' + valorFmt + '</span>' +
+'<button class="btn-excluir" onclick="moverFatura(' + JSON.stringify(item.id) + ',' + cicloIdx + ');" title="Mover fatura" style="font-size:12px">&#x21C4;</button>' +
+'<button class="btn-excluir" onclick="excluirGasto(' + JSON.stringify(item.id) + ')" title="Excluir">&#x1F5D1;</button>' +
 '</div></div>';
 }).join('');
 return '<div class="fatura-cat-group">' +
@@ -1000,12 +606,12 @@ return '<div class="fatura-card ' + c.tipo + '">' +
 '<div class="fatura-datas">Fecha: ' + dtFech + ' &nbsp;|&nbsp; Vence: ' + dtVenc + '</div>' +
 '<div class="fatura-total">' + totalFmt + '</div>' +
 itensHtml +
-'<button class="fatura-add-btn" onclick="toggleAddForm('fatura-add-'+c.mesAno+'')">&#43; Adicionar lancamento</button>' +
-'<div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row">' +
-'<div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div>' +
-'<div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div>' +
-'<div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div>' +
-'<button class="btn-add-salvar" onclick="adicionarLancamento(''+c.mesAno+'')">Salvar</button>' +
+'<button class="fatura-add-btn" onclick="toggleAddForm(' + JSON.stringify('fatura-add-'+c.mesAno) + ')">&#43; Adicionar lancamento</button>' +
+'<div id="fatura-add-' + c.mesAno + '" class="fatura-add-form"><div class="fatura-add-row">' +
+'<div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-' + c.mesAno + '" placeholder="Ex: IOF..." /></div>' +
+'<div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-' + c.mesAno + '" placeholder="0,00" /></div>' +
+'<div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-' + c.mesAno + '" placeholder="Outros" /></div>' +
+'<button class="btn-add-salvar" onclick="adicionarLancamento(' + JSON.stringify(c.mesAno) + ')">Salvar</button>' +
 '</div></div></div>';
 }).join('');
 
