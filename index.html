@@ -1,922 +1,1021 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1a237e" />
-  <meta name="description" content="Finan$M$ - Classificacao de gastos de cartao via SMS" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Finan$M$" />
-  <title>Finan$M$ - Gastos</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a237e;
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-  }
-  .app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: rgba(0,0,0,0.2);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    gap: 8px;
-  }
-  .app-title { font-size: clamp(18px,5vw,24px); font-weight: 900; color: #fff; letter-spacing: 1px; }
-  .header-btns { display: flex; gap: 8px; align-items: center; }
-  .btn-notif, .btn-historico {
-    background: rgba(255,255,255,0.15);
-    color: #fff; border: none;
-    padding: 8px 12px; border-radius: 20px;
-    font-size: 13px; cursor: pointer;
-    white-space: nowrap; font-weight: 600;
-  }
-  .btn-historico { background: rgba(255,255,255,0.1); }
-  .state-screen {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 24px 16px; text-align: center; color: #fff; gap: 16px;
-  }
-  .hidden { display: none !important; }
-  .state-icon { font-size: clamp(40px,12vw,64px); }
-  .state-title { font-size: clamp(18px,5vw,24px); font-weight: 700; }
-  .state-subtitle { font-size: clamp(13px,3.5vw,16px); opacity: 0.8; max-width: 300px; line-height: 1.4; }
-  .btn-reload {
-    background: #ff7043; color: #fff; border: none;
-    padding: 14px 32px; border-radius: 30px;
-    font-size: 16px; font-weight: 700; cursor: pointer;
-    min-width: 200px;
-  }
-  .spinner {
-    width: 48px; height: 48px;
-    border: 4px solid rgba(255,255,255,0.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #screenGasto {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: flex-start;
-    padding: 16px; overflow-y: auto;
-  }
-  .gasto-card {
-    background: #fff; border-radius: 20px; padding: 20px;
-    width: 100%; max-width: 480px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 16px;
-  }
-  .gasto-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #999; text-transform: uppercase; margin-bottom: 8px; }
-  .gasto-nome { font-size: clamp(20px,6vw,28px); font-weight: 800; color: #1a237e; margin-bottom: 8px; line-height: 1.2; word-break: break-word; }
-  .gasto-valor { font-size: clamp(22px,7vw,32px); font-weight: 900; color: #e53935; text-align: right; }
-  .gasto-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .gasto-meta { display: flex; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
-  .gasto-meta-item { display: flex; flex-direction: column; gap: 2px; }
-  .gasto-meta-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #bbb; text-transform: uppercase; }
-  .gasto-meta-value { font-size: 14px; font-weight: 600; color: #333; }
-  .progress-text { color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 600; text-align: center; }
-  .cat-label { color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; text-align: center; }
-  .cat-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 10px; width: 100%; max-width: 480px; padding-bottom: 16px;
-  }
-  .btn-cat {
-    background: #f5f5f5; border: 2px solid transparent;
-    border-radius: 14px; padding: 14px 8px;
-    font-size: clamp(13px,3.5vw,15px); font-weight: 700;
-    cursor: pointer; min-height: 52px;
-    display: flex; align-items: center; justify-content: center;
-    text-align: center; line-height: 1.2;
-    -webkit-tap-highlight-color: transparent;
-    transition: transform 0.1s;
-  }
-  .btn-cat:active { transform: scale(0.96); }
-  .btn-cat.alimentacao  { color:#2e7d32; background:#e8f5e9; border-color:#a5d6a7; }
-  .btn-cat.assinaturas  { color:#1565c0; background:#e3f2fd; border-color:#90caf9; }
-  .btn-cat.bares        { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
-  .btn-cat.caridade     { color:#880e4f; background:#fce4ec; border-color:#f48fb1; }
-  .btn-cat.empresa      { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
-  .btn-cat.entretenimento { color:#4a148c; background:#f3e5f5; border-color:#ce93d8; }
-  .btn-cat.mercado      { color:#004d40; background:#e0f2f1; border-color:#80cbc4; }
-  .btn-cat.mobilidade   { color:#0d47a1; background:#e3f2fd; border-color:#90caf9; }
-  .btn-cat.presentes    { color:#bf360c; background:#fbe9e7; border-color:#ffab91; }
-  .btn-cat.reembolsavel { color:#1b5e20; background:#f1f8e9; border-color:#aed581; }
-  .btn-cat.saude        { color:#b71c1c; background:#ffebee; border-color:#ef9a9a; }
-  .btn-cat.servicos     { color:#37474f; background:#eceff1; border-color:#b0bec5; }
-  .btn-cat.vestuario    { color:#e91e63; background:#fce4ec; border-color:#f48fb1; }
-  #screenHistorico {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; padding: 16px; overflow-y: auto; color: #fff;
-  }
-  .hist-header { display:flex; align-items:center; gap:12px; width:100%; max-width:480px; margin-bottom:16px; }
-  .hist-title { font-size:20px; font-weight:800; flex:1; }
-  .btn-back {
-    background:rgba(255,255,255,0.15); color:#fff; border:none;
-    padding:8px 16px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer;
-  }
-  .hist-list { display:flex; flex-direction:column; gap:10px; width:100%; max-width:480px; }
-  .hist-item {
-    background:#fff; border-radius:14px; padding:14px 16px;
-    display:flex; justify-content:space-between; align-items:center;
-    gap:10px; cursor:pointer;
-  }
-  .hist-item:active { transform: scale(0.98); }
-  .hist-item-left { flex:1; min-width:0; }
-  .hist-item-nome { font-size:15px; font-weight:700; color:#1a237e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .hist-item-data { font-size:11px; color:#999; margin-top:2px; }
-  .hist-item-cat { font-size:11px; font-weight:700; padding:4px 10px; border-radius:12px; background:#e8eaf6; color:#3949ab; white-space:nowrap; flex-shrink:0; }
-  .hist-loading { color:rgba(255,255,255,0.7); text-align:center; padding:32px; }
-  .modal-overlay {
-    position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200;
-    display:flex; align-items:flex-end; justify-content:center;
-  }
-  .modal-overlay.hidden { display:none !important; }
-  .modal-box {
-    background:#1a237e; border-radius:24px 24px 0 0;
-    padding:20px 16px 32px; width:100%; max-width:480px;
-    max-height:80vh; overflow-y:auto;
-  }
-  .modal-drag { width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px; }
-  .modal-title { color:#fff; font-size:16px; font-weight:700; margin-bottom:4px; }
-  .modal-sub { color:rgba(255,255,255,0.6); font-size:13px; margin-bottom:16px; }
-  #toast {
-    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
-    background:#333; color:#fff; padding:12px 24px; border-radius:24px;
-    font-size:14px; font-weight:600; transition:transform 0.3s ease;
-    z-index:300; white-space:nowrap; pointer-events:none;
-  }
-  #toast.show { transform:translateX(-50%) translateY(0); }
-  #toast.success { background:#2e7d32; }
-  #toast.error { background:#c62828; }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1a237e" />
+<meta name="description" content="Finan$M$ - Classificacao de gastos de cartao via SMS" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Finan$M$" />
+<title>Finan$M$ - Gastos</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+background: #1a237e;
+min-height: 100vh;
+min-height: 100dvh;
+display: flex;
+flex-direction: column;
+overflow-x: hidden;
+}
+.app-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 12px 16px;
+background: rgba(0,0,0,0.2);
+position: sticky;
+top: 0;
+z-index: 100;
+gap: 8px;
+}
+.app-title { font-size: clamp(18px,5vw,24px); font-weight: 900; color: #fff; letter-spacing: 1px; }
+.header-btns { display: flex; gap: 8px; align-items: center; }
+.btn-notif, .btn-historico {
+background: rgba(255,255,255,0.15);
+color: #fff; border: none;
+padding: 8px 12px; border-radius: 20px;
+font-size: 13px; cursor: pointer;
+white-space: nowrap; font-weight: 600;
+}
+.btn-historico { background: rgba(255,255,255,0.1); }
+.state-screen {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; justify-content: center;
+padding: 24px 16px; text-align: center; color: #fff; gap: 16px;
+}
+.hidden { display: none !important; }
+.state-icon { font-size: clamp(40px,12vw,64px); }
+.state-title { font-size: clamp(18px,5vw,24px); font-weight: 700; }
+.state-subtitle { font-size: clamp(13px,3.5vw,16px); opacity: 0.8; max-width: 300px; line-height: 1.4; }
+.btn-reload {
+background: #ff7043; color: #fff; border: none;
+padding: 14px 32px; border-radius: 30px;
+font-size: 16px; font-weight: 700; cursor: pointer;
+min-width: 200px;
+}
+.spinner {
+width: 48px; height: 48px;
+border: 4px solid rgba(255,255,255,0.3);
+border-top-color: #fff; border-radius: 50%;
+animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#screenGasto {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; justify-content: flex-start;
+padding: 16px; overflow-y: auto;
+}
+.gasto-card {
+background: #fff; border-radius: 20px; padding: 20px;
+width: 100%; max-width: 480px;
+box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 16px;
+}
+.gasto-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #999; text-transform: uppercase; margin-bottom: 8px; }
+.gasto-nome { font-size: clamp(20px,6vw,28px); font-weight: 800; color: #1a237e; margin-bottom: 4px; line-height: 1.2; word-break: break-word; }
+.gasto-nome-orig { font-size: 12px; color: #aaa; margin-bottom: 4px; word-break: break-word; }
+.gasto-valor { font-size: clamp(22px,7vw,32px); font-weight: 900; color: #e53935; text-align: right; }
+.gasto-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.gasto-meta { display: flex; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+.gasto-meta-item { display: flex; flex-direction: column; gap: 2px; }
+.gasto-meta-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #bbb; text-transform: uppercase; }
+.gasto-meta-value { font-size: 14px; font-weight: 600; color: #333; }
+.gasto-apelido-wrap { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+.gasto-apelido-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #bbb; text-transform: uppercase; margin-bottom: 4px; }
+.gasto-apelido-input { width: 100%; border: 1.5px solid #e0e0e0; border-radius: 8px; padding: 7px 10px; font-size: 14px; color: #333; outline: none; }
+.gasto-apelido-input:focus { border-color: #3949ab; }
+.progress-text { color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 600; text-align: center; }
+.cat-label { color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; text-align: center; }
+.cat-grid {
+display: grid; grid-template-columns: 1fr 1fr;
+gap: 10px; width: 100%; max-width: 480px; padding-bottom: 16px;
+}
+.btn-cat {
+background: #f5f5f5; border: 2px solid transparent;
+border-radius: 14px; padding: 14px 8px;
+font-size: clamp(13px,3.5vw,15px); font-weight: 700;
+cursor: pointer; min-height: 52px;
+display: flex; align-items: center; justify-content: center;
+text-align: center; line-height: 1.2;
+-webkit-tap-highlight-color: transparent;
+transition: transform 0.1s;
+}
+.btn-cat:active { transform: scale(0.96); }
+.btn-cat.alimentacao { color:#2e7d32; background:#e8f5e9; border-color:#a5d6a7; }
+.btn-cat.assinaturas { color:#1565c0; background:#e3f2fd; border-color:#90caf9; }
+.btn-cat.bares { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
+.btn-cat.caridade { color:#880e4f; background:#fce4ec; border-color:#f48fb1; }
+.btn-cat.empresa { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
+.btn-cat.entretenimento { color:#4a148c; background:#f3e5f5; border-color:#ce93d8; }
+.btn-cat.mercado { color:#004d40; background:#e0f2f1; border-color:#80cbc4; }
+.btn-cat.mobilidade { color:#0d47a1; background:#e3f2fd; border-color:#90caf9; }
+.btn-cat.presentes { color:#bf360c; background:#fbe9e7; border-color:#ffab91; }
+.btn-cat.reembolsavel { color:#1b5e20; background:#f1f8e9; border-color:#aed581; }
+.btn-cat.saude { color:#b71c1c; background:#ffebee; border-color:#ef9a9a; }
+.btn-cat.servicos { color:#37474f; background:#eceff1; border-color:#b0bec5; }
+.btn-cat.vestuario { color:#e91e63; background:#fce4ec; border-color:#f48fb1; }
+#screenHistorico {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; padding: 16px; overflow-y: auto; color: #fff;
+}
+.hist-header { display:flex; align-items:center; gap:12px; width:100%; max-width:480px; margin-bottom:16px; }
+.hist-title { font-size:20px; font-weight:800; flex:1; }
+.btn-back {
+background:rgba(255,255,255,0.15); color:#fff; border:none;
+padding:8px 16px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.hist-list { display:flex; flex-direction:column; gap:10px; width:100%; max-width:480px; }
+.hist-item {
+background:#fff; border-radius:14px; padding:14px 16px;
+display:flex; justify-content:space-between; align-items:center;
+gap:10px; cursor:pointer;
+}
+.hist-item:active { transform: scale(0.98); }
+.hist-item-left { flex:1; min-width:0; }
+.hist-item-nome { font-size:15px; font-weight:700; color:#1a237e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hist-item-nome-orig { font-size:11px; color:#aaa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.hist-item-data { font-size:11px; color:#999; margin-top:2px; }
+.hist-item-cat { font-size:11px; font-weight:700; padding:4px 10px; border-radius:12px; background:#e8eaf6; color:#3949ab; white-space:nowrap; flex-shrink:0; }
+.hist-loading { color:rgba(255,255,255,0.7); text-align:center; padding:32px; }
+.modal-overlay {
+position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200;
+display:flex; align-items:flex-end; justify-content:center;
+}
+.modal-overlay.hidden { display:none !important; }
+.modal-box {
+background:#1a237e; border-radius:24px 24px 0 0;
+padding:20px 16px 32px; width:100%; max-width:480px;
+max-height:80vh; overflow-y:auto;
+}
+.modal-drag { width:40px; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; margin:0 auto 16px; }
+.modal-title { color:#fff; font-size:16px; font-weight:700; margin-bottom:4px; }
+.modal-nome-orig { color:rgba(255,255,255,0.5); font-size:11px; margin-bottom:4px; }
+.modal-sub { color:rgba(255,255,255,0.6); font-size:13px; margin-bottom:8px; }
+.modal-apelido-wrap { margin-bottom:14px; }
+.modal-apelido-label { color:rgba(255,255,255,0.7); font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+.modal-apelido-row { display:flex; gap:8px; align-items:center; }
+.modal-apelido-input { flex:1; background:rgba(255,255,255,0.15); color:#fff; border:1.5px solid rgba(255,255,255,0.3); border-radius:10px; padding:8px 12px; font-size:14px; outline:none; }
+.modal-apelido-input::placeholder { color:rgba(255,255,255,0.4); }
+.modal-apelido-input:focus { border-color:#fff; }
+.btn-salvar-apelido { background:#4CAF50; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+#toast {
+position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+background:#333; color:#fff; padding:12px 24px; border-radius:24px;
+font-size:14px; font-weight:600; transition:transform 0.3s ease;
+z-index:300; white-space:nowrap; pointer-events:none;
+}
+#toast.show { transform:translateX(-50%) translateY(0); }
+#toast.success { background:#2e7d32; }
+#toast.error { background:#c62828; }
 
-  #screenGraficos {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; padding: 16px; overflow-y: auto; color: #fff;
-  }
-  .chart-card {
-    background: #fff; border-radius: 16px; padding: 16px;
-    width: 100%; max-width: 480px; margin-bottom: 16px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  }
-  .chart-title {
-    font-size: 13px; font-weight: 700; letter-spacing: 1px;
-    color: #999; text-transform: uppercase; margin-bottom: 12px;
-  }
-  .chart-total {
-    background: rgba(255,255,255,0.1); border-radius: 16px;
-    padding: 20px; width: 100%; max-width: 480px;
-    margin-bottom: 16px; text-align: center;
-  }
-  .chart-total-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-  .chart-total-value { font-size: 32px; font-weight: 900; color: #fff; }
-  .chart-total-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
-  .cat-rank { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px; margin-bottom: 16px; }
-  .cat-rank-item { display: flex; align-items: center; gap: 10px; }
-  .cat-rank-bar-wrap { flex: 1; background: rgba(255,255,255,0.1); border-radius: 8px; height: 8px; overflow: hidden; }
-  .cat-rank-bar { height: 100%; border-radius: 8px; background: #fff; transition: width 0.5s ease; }
-  .cat-rank-name { width: 110px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); text-transform: capitalize; }
-  .cat-rank-val { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
+#screenGraficos {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; padding: 16px; overflow-y: auto; color: #fff;
+}
+.chart-card {
+background: #fff; border-radius: 16px; padding: 16px;
+width: 100%; max-width: 480px; margin-bottom: 16px;
+box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.chart-title {
+font-size: 13px; font-weight: 700; letter-spacing: 1px;
+color: #999; text-transform: uppercase; margin-bottom: 12px;
+}
+.chart-total {
+background: rgba(255,255,255,0.1); border-radius: 16px;
+padding: 20px; width: 100%; max-width: 480px;
+margin-bottom: 16px; text-align: center;
+}
+.chart-total-label { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+.chart-total-value { font-size: 32px; font-weight: 900; color: #fff; }
+.chart-total-sub { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+.cat-rank { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 480px; margin-bottom: 16px; }
+.cat-rank-item { display: flex; align-items: center; gap: 10px; }
+.cat-rank-bar-wrap { flex: 1; background: rgba(255,255,255,0.1); border-radius: 8px; height: 8px; overflow: hidden; }
+.cat-rank-bar { height: 100%; border-radius: 8px; background: #fff; transition: width 0.5s ease; }
+.cat-rank-name { width: 110px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); text-transform: capitalize; }
+.cat-rank-val { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
 
-  .fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
-  .fatura-card.atual { border-left:4px solid #3949ab; }
-  .fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
-  .fatura-card.passada { border-left:4px solid #4caf50; }
-  .fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
-  .fatura-titulo { font-size:14px;font-weight:700;color:#333; }
-  .fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
-  .fatura-badge.atual { background:#3949ab;color:#fff; }
-  .fatura-badge.futura { background:#eee;color:#999; }
-  .fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
-  .fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
-  .fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
-  .fatura-item:last-child { border-bottom:none; }
-  .fatura-item-nome { color:#444;flex:1;padding-right:8px; }
-  .fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
-  .fatura-item-valor { color:#333;font-weight:700;white-space:nowrap;cursor:pointer; }
-  .fatura-item-valor:hover { color:#3949ab;text-decoration:underline; }
-  .fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
-  .fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
-  .fatura-cat-group { margin-bottom:8px; }
-  .fatura-cat-header { display:flex;justify-content:space-between;align-items:center;padding:6px 0 4px 0;border-bottom:1px solid #f0f0f0; }
-  .fatura-cat-name { font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#555;padding-left:6px; }
-  .fatura-cat-subtotal { font-size:12px;font-weight:700;color:#444; }
-  .fatura-item-actions { display:flex;gap:4px;align-items:center;flex-shrink:0; }
-  .btn-excluir { background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;border-radius:4px;transition:color 0.2s;line-height:1; }
-  .btn-excluir:hover { color:#e53935; }
-  .fatura-add-btn { display:flex;align-items:center;gap:6px;padding:8px 0 2px 0;margin-top:8px;border-top:1px dashed #e0e0e0;color:#3949ab;font-size:12px;font-weight:700;cursor:pointer;background:none;border:none;width:100%; }
-  .fatura-add-form { margin-top:8px;padding:10px;background:#f9f9f9;border-radius:8px;display:none; }
-  .fatura-add-form.visible { display:block; }
-  .fatura-add-row { display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end; }
-  .fatura-add-field { display:flex;flex-direction:column;gap:3px;flex:1;min-width:80px; }
-  .fatura-add-field label { font-size:10px;color:#888;font-weight:600;text-transform:uppercase; }
-  .fatura-add-field input { border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px; }
-  .btn-add-salvar { background:#3949ab;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;align-self:flex-end; }
-  .btn-add-salvar:hover { background:#283593; }
+.fatura-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:16px;margin-bottom:4px; }
+.fatura-card.atual { border-left:4px solid #3949ab; }
+.fatura-card.futura { border-left:4px solid #aaa;opacity:0.8; }
+.fatura-card.passada { border-left:4px solid #4caf50; }
+.fatura-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+.fatura-titulo { font-size:14px;font-weight:700;color:#333; }
+.fatura-badge { font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;text-transform:uppercase; }
+.fatura-badge.atual { background:#3949ab;color:#fff; }
+.fatura-badge.futura { background:#eee;color:#999; }
+.fatura-badge.passada { background:#e8f5e9;color:#2e7d32; }
+.fatura-total { font-size:22px;font-weight:800;color:#333;margin:6px 0 10px 0; }
+.fatura-item { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px; }
+.fatura-item:last-child { border-bottom:none; }
+.fatura-item-nome-wrap { flex:1;padding-right:8px; }
+.fatura-item-nome { color:#1a237e;font-weight:700;font-size:13px;display:block; }
+.fatura-item-nome-orig { color:#aaa;font-size:10px;display:block; }
+.fatura-item-parcela { font-size:11px;color:#888;font-weight:600;background:#f0f0f0;border-radius:4px;padding:1px 5px;margin-left:4px; }
+.fatura-item-valor { color:#333;font-weight:700;white-space:nowrap;cursor:pointer; }
+.fatura-item-valor:hover { color:#3949ab;text-decoration:underline; }
+.fatura-datas { font-size:11px;color:#999;margin-bottom:8px; }
+.fatura-empty { color:#bbb;font-size:13px;padding:8px 0; }
+.fatura-cat-group { margin-bottom:8px; }
+.fatura-cat-header { display:flex;justify-content:space-between;align-items:center;padding:6px 0 4px 0;border-bottom:1px solid #f0f0f0; }
+.fatura-cat-name { font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:#555;padding-left:6px; }
+.fatura-cat-subtotal { font-size:12px;font-weight:700;color:#444; }
+.fatura-item-actions { display:flex;gap:4px;align-items:center;flex-shrink:0; }
+.btn-excluir { background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;border-radius:4px;transition:color 0.2s;line-height:1; }
+.btn-excluir:hover { color:#e53935; }
+.fatura-add-btn { display:flex;align-items:center;gap:6px;padding:8px 0 2px 0;margin-top:8px;border-top:1px dashed #e0e0e0;color:#3949ab;font-size:12px;font-weight:700;cursor:pointer;background:none;border:none;width:100%; }
+.fatura-add-form { margin-top:8px;padding:10px;background:#f9f9f9;border-radius:8px;display:none; }
+.fatura-add-form.visible { display:block; }
+.fatura-add-row { display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end; }
+.fatura-add-field { display:flex;flex-direction:column;gap:3px;flex:1;min-width:80px; }
+.fatura-add-field label { font-size:10px;color:#888;font-weight:600;text-transform:uppercase; }
+.fatura-add-field input { border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:12px; }
+.btn-add-salvar { background:#3949ab;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;align-self:flex-end; }
+.btn-add-salvar:hover { background:#283593; }
 
 </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header class="app-header">
-    <div class="app-title">Finan$M$</div>
-    <div class="header-btns">
-      <button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
-      <button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
-      <button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
-      <button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">Notificacoes</button>
-    </div>
-  </header>
+<header class="app-header">
+<div class="app-title">Finan$M$</div>
+<div class="header-btns">
+<button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
+<button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
+<button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
+<button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">Notificacoes</button>
+</div>
+</header>
 
-  <div id="screenLoading" class="state-screen">
-    <div class="spinner"></div>
-    <div class="state-subtitle">Buscando gastos...</div>
-  </div>
+<div id="screenLoading" class="state-screen">
+<div class="spinner"></div>
+<div class="state-subtitle">Buscando gastos...</div>
+</div>
 
-  <div id="screenVazio" class="state-screen hidden">
-    <div class="state-icon">OK</div>
-    <div class="state-title">Tudo em dia!</div>
-    <div class="state-subtitle">Nenhum gasto pendente de classificacao.</div>
-    <button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button>
-    <button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button>
-  </div>
+<div id="screenVazio" class="state-screen hidden">
+<div class="state-icon">OK</div>
+<div class="state-title">Tudo em dia!</div>
+<div class="state-subtitle">Nenhum gasto pendente de classificacao.</div>
+<button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button>
+<button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button>
+</div>
 
-  <div id="screenErro" class="state-screen hidden">
-    <div class="state-icon">Erro</div>
-    <div id="erroMsg" class="state-title">Erro de conexao</div>
-    <div class="state-subtitle">Nao foi possivel conectar ao servidor.</div>
-    <button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button>
-  </div>
+<div id="screenErro" class="state-screen hidden">
+<div class="state-icon">Erro</div>
+<div id="erroMsg" class="state-title">Erro de conexao</div>
+<div class="state-subtitle">Nao foi possivel conectar ao servidor.</div>
+<button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button>
+</div>
 
-  <div id="screenGasto" class="hidden" style="width:100%;max-width:480px;margin:0 auto;">
-    <div class="gasto-card">
-      <div class="gasto-label">GASTO PENDENTE</div>
-      <div class="gasto-top">
-        <div id="gastoEstabelecimento" class="gasto-nome">-</div>
-        <div id="gastoValor" class="gasto-valor">-</div>
-      </div>
-      <div class="gasto-meta">
-        <div class="gasto-meta-item">
-          <span class="gasto-meta-label">DATA</span>
-          <span id="gastoData" class="gasto-meta-value">-</span>
-        </div>
-        <div class="gasto-meta-item">
-          <span class="gasto-meta-label">HORA</span>
-          <span id="gastoHora" class="gasto-meta-value">-</span>
-        </div>
-        <div class="gasto-meta-item">
-          <span class="gasto-meta-label">CARTAO</span>
-          <span id="gastoCartao" class="gasto-meta-value">****</span>
-        </div>
-      </div>
-    </div>
-    <div id="progressText" class="progress-text" style="margin-bottom:10px"></div>
-    <div class="cat-label" style="margin-bottom:12px">SELECIONE A CATEGORIA</div>
-    <div class="cat-grid">
-      <button class="btn-cat alimentacao"    onclick="confirmarCategoria('alimentacao')">Alimentacao</button>
-      <button class="btn-cat assinaturas"    onclick="confirmarCategoria('assinaturas')">Assinaturas</button>
-      <button class="btn-cat bares"          onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
-      <button class="btn-cat caridade"       onclick="confirmarCategoria('caridade')">Caridade</button>
-      <button class="btn-cat empresa"        onclick="confirmarCategoria('empresa')">Empresa</button>
-      <button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
-      <button class="btn-cat mercado"        onclick="confirmarCategoria('mercado')">Mercado</button>
-      <button class="btn-cat mobilidade"     onclick="confirmarCategoria('mobilidade')">Mobilidade</button>
-      <button class="btn-cat presentes"      onclick="confirmarCategoria('presentes')">Presentes</button>
-      <button class="btn-cat reembolsavel"   onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
-      <button class="btn-cat saude"          onclick="confirmarCategoria('saude')">Saude</button>
-      <button class="btn-cat servicos"       onclick="confirmarCategoria('servicos')">Servicos</button>
-      <button class="btn-cat vestuario"      onclick="confirmarCategoria('vestuario')">Vestuario</button>
-    </div>
-  </div>
+<div id="screenGasto" class="hidden" style="width:100%;max-width:480px;margin:0 auto;">
+<div class="gasto-card">
+<div class="gasto-label">GASTO PENDENTE</div>
+<div class="gasto-top">
+<div>
+<div id="gastoEstabelecimento" class="gasto-nome">-</div>
+<div id="gastoNomeOrig" class="gasto-nome-orig"></div>
+</div>
+<div id="gastoValor" class="gasto-valor">-</div>
+</div>
+<div class="gasto-meta">
+<div class="gasto-meta-item">
+<span class="gasto-meta-label">DATA</span>
+<span id="gastoData" class="gasto-meta-value">-</span>
+</div>
+<div class="gasto-meta-item">
+<span class="gasto-meta-label">HORA</span>
+<span id="gastoHora" class="gasto-meta-value">-</span>
+</div>
+<div class="gasto-meta-item">
+<span class="gasto-meta-label">CARTAO</span>
+<span id="gastoCartao" class="gasto-meta-value">****</span>
+</div>
+</div>
+<div class="gasto-apelido-wrap">
+<div class="gasto-apelido-label">Apelido (opcional)</div>
+<input type="text" id="gastoApelidoInput" class="gasto-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" />
+</div>
+</div>
+<div id="progressText" class="progress-text" style="margin-bottom:10px"></div>
+<div class="cat-label" style="margin-bottom:12px">SELECIONE A CATEGORIA</div>
+<div class="cat-grid">
+<button class="btn-cat alimentacao" onclick="confirmarCategoria('alimentacao')">Alimentacao</button>
+<button class="btn-cat assinaturas" onclick="confirmarCategoria('assinaturas')">Assinaturas</button>
+<button class="btn-cat bares" onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
+<button class="btn-cat caridade" onclick="confirmarCategoria('caridade')">Caridade</button>
+<button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
+<button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
+<button class="btn-cat mercado" onclick="confirmarCategoria('mercado')">Mercado</button>
+<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Mobilidade</button>
+<button class="btn-cat presentes" onclick="confirmarCategoria('presentes')">Presentes</button>
+<button class="btn-cat reembolsavel" onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
+<button class="btn-cat saude" onclick="confirmarCategoria('saude')">Saude</button>
+<button class="btn-cat servicos" onclick="confirmarCategoria('servicos')">Servicos</button>
+<button class="btn-cat vestuario" onclick="confirmarCategoria('vestuario')">Vestuario</button>
+</div>
+</div>
 
-  <div id="screenHistorico" class="hidden">
-    <div class="hist-header">
-      <button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button>
-      <div class="hist-title">&#128197; Historico</div>
-    </div>
-    <div id="histList" class="hist-list">
-      <div class="hist-loading">Carregando...</div>
-    </div>
-  </div>
+<div id="screenHistorico" class="hidden">
+<div class="hist-header">
+<button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button>
+<div class="hist-title">&#128197; Historico</div>
+</div>
+<div id="histList" class="hist-list">
+<div class="hist-loading">Carregando...</div>
+</div>
+</div>
 
+<!-- GRAFICOS -->
+<div id="screenGraficos" class="hidden">
+<div class="hist-header">
+<button class="btn-back" onclick="fecharGraficos()">&#8592; Voltar</button>
+<div class="hist-title">&#128202; Graficos</div>
+</div>
+<div id="graficosContent" style="width:100%;max-width:480px;">
+<div class="hist-loading">Carregando...</div>
+</div>
+</div>
 
-  <!-- GRAFICOS -->
-  <div id="screenGraficos" class="hidden">
-    <div class="hist-header">
-      <button class="btn-back" onclick="fecharGraficos()">&#8592; Voltar</button>
-      <div class="hist-title">&#128202; Graficos</div>
-    </div>
-    <div id="graficosContent" style="width:100%;max-width:480px;">
-      <div class="hist-loading">Carregando...</div>
-    </div>
-  </div>
+<!-- FATURAS -->
+<div id="screenFaturas" class="hidden">
+<div class="hist-header">
+<button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button>
+<div class="hist-title">&#128196; Faturas</div>
+</div>
+<div style="width:100%;max-width:480px;padding:12px 16px;">
+<div id="faturaConfig" style="background:#f5f5f5;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px;">Ciclo de Faturamento</div>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+<div style="flex:1;min-width:140px;">
+<label style="font-size:11px;color:#666;font-weight:600;">Fechamento atual</label>
+<input type="date" id="inputFechamento" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;color:#333;" onchange="salvarFechamento()">
+</div>
+</div>
+<div id="faturaVencimento" style="font-size:12px;color:#3949ab;font-weight:600;margin-top:6px;"></div>
+</div>
+<div id="faturaList" style="display:flex;flex-direction:column;gap:12px;">
+<div class="hist-loading">Configure o fechamento acima.</div>
+</div>
+</div>
+</div>
 
-  <!-- FATURAS -->
-  <div id="screenFaturas" class="hidden">
-    <div class="hist-header">
-      <button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button>
-      <div class="hist-title">&#128196; Faturas</div>
-    </div>
-    <div style="width:100%;max-width:480px;padding:12px 16px;">
-      <div id="faturaConfig" style="background:#f5f5f5;border-radius:14px;padding:14px 16px;margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:8px;">Ciclo de Faturamento</div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <div style="flex:1;min-width:140px;">
-            <label style="font-size:11px;color:#666;font-weight:600;">Fechamento atual</label>
-            <input type="date" id="inputFechamento" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;color:#333;" onchange="salvarFechamento()">
-          </div>
-        </div>
-        <div id="faturaVencimento" style="font-size:12px;color:#3949ab;font-weight:600;margin-top:6px;"></div>
-      </div>
-      <div id="faturaList" style="display:flex;flex-direction:column;gap:12px;">
-        <div class="hist-loading">Configure o fechamento acima.</div>
-      </div>
-    </div>
-  </div>
+<div id="modalReclass" class="modal-overlay hidden" onclick="fecharModal(event)">
+<div class="modal-box">
+<div class="modal-drag"></div>
+<div class="modal-title" id="modalNome">-</div>
+<div class="modal-nome-orig" id="modalNomeOrig"></div>
+<div class="modal-sub" id="modalInfo">-</div>
+<div class="modal-apelido-wrap">
+<div class="modal-apelido-label">Apelido do estabelecimento</div>
+<div class="modal-apelido-row">
+<input type="text" id="modalApelidoInput" class="modal-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" />
+<button class="btn-salvar-apelido" onclick="salvarApelidoModal()">Salvar</button>
+</div>
+</div>
+<div class="cat-grid">
+<button class="btn-cat alimentacao" onclick="reclassificar('alimentacao')">Alimentacao</button>
+<button class="btn-cat assinaturas" onclick="reclassificar('assinaturas')">Assinaturas</button>
+<button class="btn-cat bares" onclick="reclassificar('bares')">Bares/Restaurantes</button>
+<button class="btn-cat caridade" onclick="reclassificar('caridade')">Caridade</button>
+<button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
+<button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
+<button class="btn-cat mercado" onclick="reclassificar('mercado')">Mercado</button>
+<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Mobilidade</button>
+<button class="btn-cat presentes" onclick="reclassificar('presentes')">Presentes</button>
+<button class="btn-cat reembolsavel" onclick="reclassificar('reembolsavel')">Reembolsavel</button>
+<button class="btn-cat saude" onclick="reclassificar('saude')">Saude</button>
+<button class="btn-cat servicos" onclick="reclassificar('servicos')">Servicos</button>
+<button class="btn-cat vestuario" onclick="reclassificar('vestuario')">Vestuario</button>
+</div>
+</div>
+</div>
 
-  <div id="modalReclass" class="modal-overlay hidden" onclick="fecharModal(event)">
-    <div class="modal-box">
-      <div class="modal-drag"></div>
-      <div class="modal-title" id="modalNome">-</div>
-      <div class="modal-sub" id="modalInfo">-</div>
-      <div class="cat-grid">
-        <button class="btn-cat alimentacao"    onclick="reclassificar('alimentacao')">Alimentacao</button>
-        <button class="btn-cat assinaturas"    onclick="reclassificar('assinaturas')">Assinaturas</button>
-        <button class="btn-cat bares"          onclick="reclassificar('bares')">Bares/Restaurantes</button>
-        <button class="btn-cat caridade"       onclick="reclassificar('caridade')">Caridade</button>
-        <button class="btn-cat empresa"        onclick="reclassificar('empresa')">Empresa</button>
-        <button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
-        <button class="btn-cat mercado"        onclick="reclassificar('mercado')">Mercado</button>
-        <button class="btn-cat mobilidade"     onclick="reclassificar('mobilidade')">Mobilidade</button>
-        <button class="btn-cat presentes"      onclick="reclassificar('presentes')">Presentes</button>
-        <button class="btn-cat reembolsavel"   onclick="reclassificar('reembolsavel')">Reembolsavel</button>
-        <button class="btn-cat saude"          onclick="reclassificar('saude')">Saude</button>
-        <button class="btn-cat servicos"       onclick="reclassificar('servicos')">Servicos</button>
-        <button class="btn-cat vestuario"      onclick="reclassificar('vestuario')">Vestuario</button>
-      </div>
-    </div>
-  </div>
+<div id="toast"></div>
+<script>
+const API = 'https://web-production-09718.up.railway.app';
+let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null;
 
-  <div id="toast"></div>
+function mostrarTela(id) {
+['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas'].forEach(s => {
+document.getElementById(s).classList.add('hidden');
+});
+document.getElementById(id).classList.remove('hidden');
+}
 
-  <script>
-    const API = 'https://web-production-09718.up.railway.app';
-    let gastos = [], indexAtual = 0, gastoSelecionadoId = null;
+function showToast(msg, tipo) {
+const t = document.getElementById('toast');
+t.textContent = msg;
+t.className = 'show ' + (tipo || '');
+setTimeout(() => t.classList.remove('show'), 2800);
+}
 
-    function mostrarTela(id) {
-      ['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas'].forEach(s => {
-        document.getElementById(s).classList.add('hidden');
-      });
-      document.getElementById(id).classList.remove('hidden');
-    }
+function extrairMoeda(msg) {
+if (!msg) return 'BRL';
+const m = msg.match(/VALOR DE (USD|EUR|GBP|ARS|CLP|UYU|MXN|COP|PEN)/i);
+return m ? m[1].toUpperCase() : 'BRL';
+}
+const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
+function formatarValor(v, moeda) {
+if (typeof v !== 'number') return 'R$ -';
+const s = SIMBOLOS_MOEDA[moeda || 'BRL'] || moeda || 'R$';
+return s + ' ' + v.toFixed(2).replace('.', ',');
+}
+function formatarData(d) {
+if (!d) return '-';
+return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
+}
+function formatarHora(h) { return h ? h.substring(0,5) : '-'; }
 
-    function showToast(msg, tipo) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.className = 'show ' + (tipo || '');
-      setTimeout(() => t.classList.remove('show'), 2800);
-    }
+// Returns display name: apelido if set, otherwise nome_original
+function nomeExibicao(g) {
+return (g.apelido && g.apelido.trim()) ? g.apelido.trim() : (g.estabelecimento || '-');
+}
 
-    function extrairMoeda(msg) {
-      if (!msg) return 'BRL';
-      const m = msg.match(/VALOR DE (USD|EUR|GBP|ARS|CLP|UYU|MXN|COP|PEN)/i);
-      return m ? m[1].toUpperCase() : 'BRL';
-    }
-    const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'â¬',GBP:'Â£',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
-    function formatarValor(v, moeda) {
-      if (typeof v !== 'number') return 'R$ -';
-      const s = SIMBOLOS_MOEDA[moeda || 'BRL'] || moeda || 'R$';
-      return s + ' ' + v.toFixed(2).replace('.', ',');
-    }
-    function formatarData(d) {
-      if (!d) return '-';
-      return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR');
-    }
-    function formatarHora(h) { return h ? h.substring(0,5) : '-'; }
+function renderGasto(g) {
+const apelido = (g.apelido && g.apelido.trim()) ? g.apelido.trim() : '';
+const nomeOrig = g.estabelecimento || '-';
+document.getElementById('gastoEstabelecimento').textContent = apelido || nomeOrig;
+const origEl = document.getElementById('gastoNomeOrig');
+if (apelido) {
+origEl.textContent = nomeOrig;
+origEl.style.display = '';
+} else {
+origEl.textContent = '';
+origEl.style.display = 'none';
+}
+document.getElementById('gastoApelidoInput').value = apelido;
+document.getElementById('gastoValor').textContent = formatarValor(g.valor, extrairMoeda(g.mensagem_original));
+document.getElementById('gastoData').textContent = formatarData(g.data_compra);
+document.getElementById('gastoHora').textContent = formatarHora(g.hora_compra);
+document.getElementById('gastoCartao').textContent = '****';
+document.getElementById('progressText').textContent = (indexAtual+1) + ' de ' + gastos.length + ' pendentes';
+mostrarTela('screenGasto');
+}
 
-    function renderGasto(g) {
-      document.getElementById('gastoEstabelecimento').textContent = g.estabelecimento || '-';
-      document.getElementById('gastoValor').textContent = formatarValor(g.valor, extrairMoeda(g.mensagem_original));
-      document.getElementById('gastoData').textContent = formatarData(g.data_compra);
-      document.getElementById('gastoHora').textContent = formatarHora(g.hora_compra);
-      document.getElementById('gastoCartao').textContent = '****';
-      document.getElementById('progressText').textContent = (indexAtual+1) + ' de ' + gastos.length + ' pendentes';
-      mostrarTela('screenGasto');
-    }
+async function carregarGastos() {
+mostrarTela('screenLoading');
+const MAX = 5, DELAY = 5000, TIMEOUT = 60000;
+let t = 0;
+while (t < MAX) {
+try {
+const ctrl = new AbortController();
+const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
+const res = await fetch(API + '/gastos/pendentes', { signal: ctrl.signal });
+clearTimeout(timer);
+if (!res.ok) throw new Error('HTTP ' + res.status);
+const data = await res.json();
+gastos = data || []; indexAtual = 0;
+if (gastos.length === 0) mostrarTela('screenVazio');
+else renderGasto(gastos[0]);
+return;
+} catch(e) {
+t++;
+if (t < MAX) await new Promise(r => setTimeout(r, DELAY));
+}
+}
+mostrarTela('screenErro');
+}
 
-    async function carregarGastos() {
-      mostrarTela('screenLoading');
-      const MAX = 5, DELAY = 5000, TIMEOUT = 60000;
-      let t = 0;
-      while (t < MAX) {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
-          const res = await fetch(API + '/gastos/pendentes', { signal: ctrl.signal });
-          clearTimeout(timer);
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const data = await res.json();
-          gastos = data || []; indexAtual = 0;
-          if (gastos.length === 0) mostrarTela('screenVazio');
-          else renderGasto(gastos[0]);
-          return;
-        } catch(e) {
-          t++;
-          if (t < MAX) await new Promise(r => setTimeout(r, DELAY));
-        }
-      }
-      mostrarTela('screenErro');
-    }
+async function confirmarCategoria(cat) {
+const g = gastos[indexAtual];
+if (!g) return;
+const apelidoInput = document.getElementById('gastoApelidoInput').value.trim();
+try {
+// Build URL with optional apelido param
+let url = API + '/gastos/' + g.id + '/confirmar?categoria=' + encodeURIComponent(cat);
+if (apelidoInput) url += '&apelido=' + encodeURIComponent(apelidoInput);
+const res = await fetch(url, { method:'PATCH' });
+if (!res.ok) throw new Error('HTTP ' + res.status);
+// If apelido was entered, save to estabelecimentos table
+if (apelidoInput) {
+await fetch(API + '/estabelecimentos', {
+method: 'POST',
+headers: {'Content-Type':'application/json'},
+body: JSON.stringify({nome_original: g.estabelecimento, apelido: apelidoInput, categoria_padrao: cat})
+}).catch(e => console.log('estab save err:', e));
+}
+showToast((apelidoInput || g.estabelecimento) + ' -> ' + cat, 'success');
+indexAtual++;
+if (indexAtual < gastos.length) renderGasto(gastos[indexAtual]);
+else mostrarTela('screenVazio');
+} catch(e) { showToast('Erro: ' + e.message, 'error'); }
+}
 
-    async function confirmarCategoria(cat) {
-      const g = gastos[indexAtual];
-      if (!g) return;
-      try {
-        const res = await fetch(API + '/gastos/' + g.id + '/confirmar?categoria=' + encodeURIComponent(cat), { method:'PATCH' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast(g.estabelecimento + ' â ' + cat, 'success');
-        indexAtual++;
-        if (indexAtual < gastos.length) renderGasto(gastos[indexAtual]);
-        else mostrarTela('screenVazio');
-      } catch(e) { showToast('Erro: ' + e.message, 'error'); }
-    }
+async function abrirHistorico() {
+mostrarTela('screenHistorico');
+document.getElementById('histList').innerHTML = '<div class="hist-loading">Carregando...</div>';
+try {
+const res = await fetch(API + '/gastos/confirmados');
+if (!res.ok) throw new Error('HTTP ' + res.status);
+const data = await res.json();
+if (!data || data.length === 0) {
+document.getElementById('histList').innerHTML = '<div class="hist-loading">Nenhum gasto classificado ainda.</div>';
+return;
+}
+document.getElementById('histList').innerHTML = data.map(g => {
+const idEsc = g.id;
+const nomeExib = nomeExibicao(g);
+const nomeOrigEsc = (g.estabelecimento||'').replace(/"/g,'&quot;');
+const nomeExibEsc = nomeExib.replace(/"/g,'&quot;');
+const apelidoEsc = (g.apelido||'').replace(/"/g,'&quot;');
+const catLabel = g.categoria || '?';
+const moedaG = extrairMoeda(g.mensagem_original); const valorFmt = formatarValor(g.valor, moedaG);
+const dataFmt = formatarData(g.data_compra);
+const hasApelido = g.apelido && g.apelido.trim();
+return '<div class="hist-item" onclick="abrirReclass('' + idEsc + '','' + nomeExibEsc.replace(/'/g,"\'") + '','' + catLabel + '','' + valorFmt + '','' + nomeOrigEsc.replace(/'/g,"\'") + '','' + apelidoEsc.replace(/'/g,"\'") + '')">' +
+'<div class="hist-item-left">' +
+'<div class="hist-item-nome">' + nomeExib + '</div>' +
+(hasApelido ? '<div class="hist-item-nome-orig">' + (g.estabelecimento||'') + '</div>' : '') +
+'<div class="hist-item-data">' + dataFmt + ' - ' + valorFmt + '</div>' +
+'</div>' +
+'<div class="hist-item-cat">' + catLabel + '</div>' +
+'</div>';
+}).join('');
+} catch(e) {
+document.getElementById('histList').innerHTML = '<div class="hist-loading">Erro: ' + e.message + '</div>';
+}
+}
 
-    async function abrirHistorico() {
-      mostrarTela('screenHistorico');
-      document.getElementById('histList').innerHTML = '<div class="hist-loading">Carregando...</div>';
-      try {
-        const res = await fetch(API + '/gastos/confirmados');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (!data || data.length === 0) {
-          document.getElementById('histList').innerHTML = '<div class="hist-loading">Nenhum gasto classificado ainda.</div>';
-          return;
-        }
-        document.getElementById('histList').innerHTML = data.map(g => {
-          const nomeEsc = (g.estabelecimento||'').replace(/'/g,"\\'");
-          const catLabel = g.categoria || '?';
-          const moedaG = extrairMoeda(g.mensagem_original); const valorFmt = formatarValor(g.valor, moedaG);
-          const dataFmt = formatarData(g.data_compra);
-          return '<div class="hist-item" onclick="abrirReclass(\''+g.id+'\',\''+nomeEsc+'\',\''+catLabel+'\',\''+valorFmt+'\')">' +
-            '<div class="hist-item-left">' +
-            '<div class="hist-item-nome">' + (g.estabelecimento||'-') + '</div>' +
-            '<div class="hist-item-data">' + dataFmt + ' Â· ' + valorFmt + '</div>' +
-            '</div>' +
-            '<div class="hist-item-cat">' + catLabel + '</div>' +
-            '</div>';
-        }).join('');
-      } catch(e) {
-        document.getElementById('histList').innerHTML = '<div class="hist-loading">Erro: ' + e.message + '</div>';
-      }
-    }
+function fecharHistorico() {
+if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
+else mostrarTela('screenVazio');
+}
 
-    function fecharHistorico() {
-      if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
-      else mostrarTela('screenVazio');
-    }
+function abrirReclass(id, nome, catAtual, valor, nomeOrig, apelidoAtual) {
+gastoSelecionadoId = id;
+gastoSelecionadoNomeOrig = nomeOrig || nome;
+document.getElementById('modalNome').textContent = nome;
+const origEl = document.getElementById('modalNomeOrig');
+if (nomeOrig && nomeOrig !== nome) {
+origEl.textContent = nomeOrig;
+origEl.style.display = '';
+} else {
+origEl.textContent = '';
+origEl.style.display = 'none';
+}
+document.getElementById('modalInfo').textContent = valor + ' - Atual: ' + catAtual;
+document.getElementById('modalApelidoInput').value = apelidoAtual || '';
+document.getElementById('modalReclass').classList.remove('hidden');
+}
 
-    function abrirReclass(id, nome, catAtual, valor) {
-      gastoSelecionadoId = id;
-      document.getElementById('modalNome').textContent = nome;
-      document.getElementById('modalInfo').textContent = valor + ' Â· Atual: ' + catAtual;
-      document.getElementById('modalReclass').classList.remove('hidden');
-    }
+function fecharModal(e) {
+if (e && e.target !== document.getElementById('modalReclass')) return;
+document.getElementById('modalReclass').classList.add('hidden');
+gastoSelecionadoId = null;
+gastoSelecionadoNomeOrig = null;
+}
 
-    function fecharModal(e) {
-      if (e && e.target !== document.getElementById('modalReclass')) return;
-      document.getElementById('modalReclass').classList.add('hidden');
-      gastoSelecionadoId = null;
-    }
+async function salvarApelidoModal() {
+if (!gastoSelecionadoId) return;
+const apelido = document.getElementById('modalApelidoInput').value.trim();
+const nomeOrig = gastoSelecionadoNomeOrig || '';
+if (!apelido) { showToast('Digite um apelido', 'error'); return; }
+try {
+// Patch apelido on this gasto
+await fetch(API + '/gastos/' + gastoSelecionadoId + '/confirmar?categoria=__keep__&apelido=' + encodeURIComponent(apelido), {method:'PATCH'});
+// Save/update in estabelecimentos and propagate to all gastos with same nome_original
+await fetch(API + '/estabelecimentos', {
+method: 'POST',
+headers: {'Content-Type':'application/json'},
+body: JSON.stringify({nome_original: nomeOrig, apelido: apelido, categoria_padrao: ''})
+});
+showToast('Apelido salvo: ' + apelido, 'success');
+// Update display name in modal
+document.getElementById('modalNome').textContent = apelido;
+const origEl = document.getElementById('modalNomeOrig');
+origEl.textContent = nomeOrig;
+origEl.style.display = '';
+// Refresh history
+await abrirHistorico();
+document.getElementById('modalReclass').classList.add('hidden');
+gastoSelecionadoId = null;
+} catch(e) { showToast('Erro: ' + e.message, 'error'); }
+}
 
-    async function reclassificar(cat) {
-      if (!gastoSelecionadoId) return;
-      document.getElementById('modalReclass').classList.add('hidden');
-      try {
-        const res = await fetch(API + '/gastos/' + gastoSelecionadoId + '/confirmar?categoria=' + encodeURIComponent(cat), { method:'PATCH' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Reclassificado: ' + cat, 'success');
-        gastoSelecionadoId = null;
-        await abrirHistorico();
-      } catch(e) { showToast('Erro: ' + e.message, 'error'); }
-    }
+async function reclassificar(cat) {
+if (!gastoSelecionadoId) return;
+document.getElementById('modalReclass').classList.add('hidden');
+try {
+const apelido = document.getElementById('modalApelidoInput').value.trim();
+let url = API + '/gastos/' + gastoSelecionadoId + '/confirmar?categoria=' + encodeURIComponent(cat);
+if (apelido) url += '&apelido=' + encodeURIComponent(apelido);
+const res = await fetch(url, { method:'PATCH' });
+if (!res.ok) throw new Error('HTTP ' + res.status);
+if (apelido && gastoSelecionadoNomeOrig) {
+await fetch(API + '/estabelecimentos', {
+method: 'POST',
+headers: {'Content-Type':'application/json'},
+body: JSON.stringify({nome_original: gastoSelecionadoNomeOrig, apelido: apelido, categoria_padrao: cat})
+}).catch(e => console.log('estab save err:', e));
+}
+showToast('Reclassificado: ' + cat, 'success');
+gastoSelecionadoId = null;
+gastoSelecionadoNomeOrig = null;
+await abrirHistorico();
+} catch(e) { showToast('Erro: ' + e.message, 'error'); }
+}
 
-    function urlBase64ToUint8Array(b64) {
-      const pad = '='.repeat((4 - b64.length%4)%4);
-      const base64 = (b64+pad).replace(/-/g,'+').replace(/_/g,'/');
-      const raw = atob(base64);
-      return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
-    }
+function urlBase64ToUint8Array(b64) {
+const pad = '='.repeat((4 - b64.length%4)%4);
+const base64 = (b64+pad).replace(/-/g,'+').replace(/_/g,'/');
+const raw = atob(base64);
+return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
 
-    async function requestNotifPermission() {
-      try {
-        const p = await Notification.requestPermission();
-        if (p !== 'granted') { showToast('Notificacoes bloqueadas','error'); return; }
-        await registerAndSubscribe();
-      } catch(e) { showToast('Erro: '+e.message,'error'); }
-    }
+async function requestNotifPermission() {
+try {
+const p = await Notification.requestPermission();
+if (p !== 'granted') { showToast('Notificacoes bloqueadas','error'); return; }
+await registerAndSubscribe();
+} catch(e) { showToast('Erro: '+e.message,'error'); }
+}
 
-    async function registerAndSubscribe() {
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        const res = await fetch(API+'/push/vapid-public-key');
-        const {publicKey} = await res.json();
-        const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(publicKey) });
-        const sj = sub.toJSON();
-        await fetch(API+'/push/subscribe',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys}) });
-        showToast('Notificacoes ativadas!','success');
-        document.getElementById('btnNotif').textContent = 'Notif ativa';
-        document.getElementById('btnNotif').style.background = '#4CAF50';
-      } catch(e) { showToast('Erro: '+e.message,'error'); }
-    }
+async function registerAndSubscribe() {
+try {
+const reg = await navigator.serviceWorker.ready;
+const res = await fetch(API+'/push/vapid-public-key');
+const {publicKey} = await res.json();
+const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(publicKey) });
+const sj = sub.toJSON();
+await fetch(API+'/push/subscribe',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys}) });
+showToast('Notificacoes ativadas!','success');
+document.getElementById('btnNotif').textContent = 'Notif ativa';
+document.getElementById('btnNotif').style.background = '#4CAF50';
+} catch(e) { showToast('Erro: '+e.message,'error'); }
+}
 
-    async function registerServiceWorker() {
-      if ('serviceWorker' in navigator) {
-        try { await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
-      }
-    }
+async function registerServiceWorker() {
+if ('serviceWorker' in navigator) {
+try { await navigator.serviceWorker.register('./sw.js'); } catch(e) {}
+}
+}
+// ---- GRAFICOS ----
+let _chartAtivo = null;
+let _faturasDados = [];
+const CORES_CAT = {
+alimentacao:'#4CAF50',assinaturas:'#2196F3',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',
+entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',
+reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'
+};
+async function abrirGraficos() {
+mostrarTela('screenGraficos');
+document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Carregando...</div>';
+if (_chartAtivo) { _chartAtivo.destroy(); _chartAtivo = null; }
+var saved = localStorage.getItem('fechamento_atual');
+try { var cfg = await (await fetch(API+'/config')).json(); if(cfg&&cfg.fechamento_atual) saved=cfg.fechamento_atual; } catch(e){}
+if (!saved) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>'; return; }
+try {
+var res = await fetch(API+'/gastos/confirmados');
+if (!res.ok) throw new Error('HTTP '+res.status);
+_faturasDados = calcFaturasDados(await res.json(), saved);
+renderGraficosUI(_faturasDados);
+} catch(e) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>'; }
+}
+function calcFaturasDados(lista, fechStr) {
+var fAt = new Date(fechStr+'T12:00:00');
+var nm = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+var ciclos = [];
+for (var off = -2; off <= 1; off++) {
+var ini = new Date(fAt.getFullYear(), fAt.getMonth()+off, fAt.getDate()+1);
+var fD = new Date(fAt.getFullYear(), fAt.getMonth()+off+1, fAt.getDate());
+var m = nm[fD.getMonth()];
+ciclos.push({
+inicio: ini.toISOString().slice(0,10), fechamento: fD.toISOString().slice(0,10),
+label: m.charAt(0).toUpperCase()+m.slice(1)+' '+String(fD.getFullYear()).slice(2),
+labelFull: m.charAt(0).toUpperCase()+m.slice(1)+' '+fD.getFullYear(),
+mesAno: fD.getFullYear()+'-'+String(fD.getMonth()+1).padStart(2,'0'),
+tipo: off<0?'passada':off===0?'atual':'futura', cats:{}, total:0
+});
+}
+lista.forEach(function(g) {
+if (!g.data_compra) return;
+var cat = g.categoria||'sem_categoria', vt = parseFloat(g.valor||0), pt = parseInt(g.parcelas_total||1), vp = pt>1?vt/pt:vt;
+for (var p=1; p<=pt; p++) {
+var bd = new Date(g.data_compra+'T12:00:00'), pd = new Date(bd.getFullYear(),bd.getMonth()+(p-1),bd.getDate());
+var pds = pd.toISOString().slice(0,10);
+for (var i=0; i<ciclos.length; i++) {
+if (pds>=ciclos[i].inicio && pds<=ciclos[i].fechamento) {
+if(!ciclos[i].cats[cat]) ciclos[i].cats[cat]=0;
+ciclos[i].cats[cat]+=vp; ciclos[i].total+=vp; break;
+}
+}
+}
+});
+return ciclos;
+}
+function renderGraficosUI(faturas) {
+var ai = faturas.findIndex(function(f){return f.tipo==='atual';}); if(ai<0) ai=0;
+var html = '<div id="graf-btns" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;width:100%;max-width:480px;">';
+faturas.forEach(function(f,i) {
+html += '<button data-idx="'+i+'" style="padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';
+});
+html += '</div><div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div>';
+html += '<div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div>';
+document.getElementById('graficosContent').innerHTML = html;
+document.querySelectorAll('[data-idx]').forEach(function(btn) {
+btn.addEventListener('click', function() {
+var idx = parseInt(btn.getAttribute('data-idx'));
+document.querySelectorAll('[data-idx]').forEach(function(b){b.style.background='rgba(255,255,255,0.15)';});
+btn.style.background='#3949ab';
+renderGraficoFatura(faturas[idx]);
+});
+});
+renderGraficoFatura(faturas[ai]);
+}
+function renderGraficoFatura(fatura) {
+var tb = document.getElementById('graf-total');
+if(tb) tb.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Fatura '+fatura.labelFull+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+fatura.total.toFixed(2).replace('.',',')+'</div>';
+if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
+var cats = Object.entries(fatura.cats).sort(function(a,b){return b[1]-a[1];});
+if(cats.length===0){var c=document.getElementById('canvasGraf');if(c)c.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhum gasto nesta fatura.</div>';return;}
+var total=fatura.total, labels=cats.map(function(e){return e[0];}), valores=cats.map(function(e){return e[1];}), cores=cats.map(function(e){return CORES_CAT[e[0]]||'#9E9E9E';});
+var lp = {id:'lp',afterDraw:function(chart){
+var ctx=chart.ctx; ctx.save();
+chart.data.datasets.forEach(function(ds,di){
+chart.getDatasetMeta(di).data.forEach(function(bar,i){
+var val=ds.data[i], pct=total>0?Math.round(val/total*100):0;
+ctx.fillStyle='#333'; ctx.font='bold 11px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+ctx.fillText('R$ '+val.toFixed(2).replace('.',',')+' '+pct+'%', bar.x+6, bar.y);
+});
+});
+ctx.restore();
+}};
+var ctx=document.getElementById('canvasGraf'); if(!ctx) return;
+_chartAtivo = new Chart(ctx, {
+type:'bar', plugins:[lp],
+data:{labels:labels,datasets:[{data:valores,backgroundColor:cores,borderRadius:4,barThickness:26}]},
+options:{responsive:true,indexAxis:'y',layout:{padding:{right:140}},
+plugins:{legend:{display:false},tooltip:{enabled:false}},
+scales:{x:{display:false,grid:{display:false}},y:{display:true,grid:{display:false},border:{display:false},ticks:{color:'#444',font:{size:12,weight:'600'},padding:4}}}
+}
+});
+}
+function mostrarGrafico(tipo) {}
 
+function fecharGraficos() {
+if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
+else mostrarTela('screenVazio');
+}
 
-    // ---- GRAFICOS ----
-    let _chartAtivo = null;
-    let _faturasDados = [];
-    const CORES_CAT = {
-      alimentacao:'#4CAF50',assinaturas:'#2196F3',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',
-      entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',
-      reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'
-    };
-    async function abrirGraficos() {
-      mostrarTela('screenGraficos');
-      document.getElementById('graficosContent').innerHTML = '<div class="hist-loading">Carregando...</div>';
-      if (_chartAtivo) { _chartAtivo.destroy(); _chartAtivo = null; }
-      var saved = localStorage.getItem('fechamento_atual');
-      try { var cfg = await (await fetch(API+'/config')).json(); if(cfg&&cfg.fechamento_atual) saved=cfg.fechamento_atual; } catch(e){}
-      if (!saved) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>'; return; }
-      try {
-        var res = await fetch(API+'/gastos/confirmados');
-        if (!res.ok) throw new Error('HTTP '+res.status);
-        _faturasDados = calcFaturasDados(await res.json(), saved);
-        renderGraficosUI(_faturasDados);
-      } catch(e) { document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>'; }
-    }
-    function calcFaturasDados(lista, fechStr) {
-      var fAt = new Date(fechStr+'T12:00:00');
-      var nm = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-      var ciclos = [];
-      for (var off = -2; off <= 1; off++) {
-        var ini = new Date(fAt.getFullYear(), fAt.getMonth()+off, fAt.getDate()+1);
-        var fD = new Date(fAt.getFullYear(), fAt.getMonth()+off+1, fAt.getDate());
-        var m = nm[fD.getMonth()];
-        ciclos.push({
-          inicio: ini.toISOString().slice(0,10), fechamento: fD.toISOString().slice(0,10),
-          label: m.charAt(0).toUpperCase()+m.slice(1)+' '+String(fD.getFullYear()).slice(2),
-          labelFull: m.charAt(0).toUpperCase()+m.slice(1)+' '+fD.getFullYear(),
-          mesAno: fD.getFullYear()+'-'+String(fD.getMonth()+1).padStart(2,'0'),
-          tipo: off<0?'passada':off===0?'atual':'futura', cats:{}, total:0
-        });
-      }
-      lista.forEach(function(g) {
-        if (!g.data_compra) return;
-        var cat = g.categoria||'sem_categoria', vt = parseFloat(g.valor||0), pt = parseInt(g.parcelas_total||1), vp = pt>1?vt/pt:vt;
-        for (var p=1; p<=pt; p++) {
-          var bd = new Date(g.data_compra+'T12:00:00'), pd = new Date(bd.getFullYear(),bd.getMonth()+(p-1),bd.getDate());
-          var pds = pd.toISOString().slice(0,10);
-          for (var i=0; i<ciclos.length; i++) {
-            if (pds>=ciclos[i].inicio && pds<=ciclos[i].fechamento) {
-              if(!ciclos[i].cats[cat]) ciclos[i].cats[cat]=0;
-              ciclos[i].cats[cat]+=vp; ciclos[i].total+=vp; break;
-            }
-          }
-        }
-      });
-      return ciclos;
-    }
-    function renderGraficosUI(faturas) {
-      var ai = faturas.findIndex(function(f){return f.tipo==='atual';}); if(ai<0) ai=0;
-      var html = '<div id="graf-btns" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;width:100%;max-width:480px;">';
-      faturas.forEach(function(f,i) {
-        html += '<button data-idx="'+i+'" style="padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';
-      });
-      html += '</div><div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div>';
-      html += '<div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div>';
-      document.getElementById('graficosContent').innerHTML = html;
-      document.querySelectorAll('[data-idx]').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var idx = parseInt(btn.getAttribute('data-idx'));
-          document.querySelectorAll('[data-idx]').forEach(function(b){b.style.background='rgba(255,255,255,0.15)';});
-          btn.style.background='#3949ab';
-          renderGraficoFatura(faturas[idx]);
-        });
-      });
-      renderGraficoFatura(faturas[ai]);
-    }
-    function renderGraficoFatura(fatura) {
-      var tb = document.getElementById('graf-total');
-      if(tb) tb.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Fatura '+fatura.labelFull+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+fatura.total.toFixed(2).replace('.',',')+'</div>';
-      if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
-      var cats = Object.entries(fatura.cats).sort(function(a,b){return b[1]-a[1];});
-      if(cats.length===0){var c=document.getElementById('canvasGraf');if(c)c.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhum gasto nesta fatura.</div>';return;}
-      var total=fatura.total, labels=cats.map(function(e){return e[0];}), valores=cats.map(function(e){return e[1];}), cores=cats.map(function(e){return CORES_CAT[e[0]]||'#9E9E9E';});
-      var lp = {id:'lp',afterDraw:function(chart){
-        var ctx=chart.ctx; ctx.save();
-        chart.data.datasets.forEach(function(ds,di){
-          chart.getDatasetMeta(di).data.forEach(function(bar,i){
-            var val=ds.data[i], pct=total>0?Math.round(val/total*100):0;
-            ctx.fillStyle='#333'; ctx.font='bold 11px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
-            ctx.fillText('R$ '+val.toFixed(2).replace('.',',')+'  '+pct+'%', bar.x+6, bar.y);
-          });
-        });
-        ctx.restore();
-      }};
-      var ctx=document.getElementById('canvasGraf'); if(!ctx) return;
-      _chartAtivo = new Chart(ctx, {
-        type:'bar', plugins:[lp],
-        data:{labels:labels,datasets:[{data:valores,backgroundColor:cores,borderRadius:4,barThickness:26}]},
-        options:{responsive:true,indexAxis:'y',layout:{padding:{right:140}},
-          plugins:{legend:{display:false},tooltip:{enabled:false}},
-          scales:{x:{display:false,grid:{display:false}},y:{display:true,grid:{display:false},border:{display:false},ticks:{color:'#444',font:{size:12,weight:'600'},padding:4}}}
-        }
-      });
-    }
-    function mostrarGrafico(tipo) {}
+// ===== FATURAS =====
 
-    function fecharGraficos() {
-      if (gastos.length > 0 && indexAtual < gastos.length) mostrarTela('screenGasto');
-      else mostrarTela('screenVazio');
-    }
+async function abrirFaturas() {
+mostrarTela('screenFaturas');
+var saved = localStorage.getItem('fechamento_atual');
+try {
+var cfgRes = await fetch(API + '/config');
+var cfg = await cfgRes.json();
+if (cfg && cfg.fechamento_atual) {
+saved = cfg.fechamento_atual;
+localStorage.setItem('fechamento_atual', saved);
+}
+} catch(e) {}
+if (saved) {
+document.getElementById('inputFechamento').value = saved;
+atualizarVencimento(saved);
+carregarFaturas(saved);
+}
+}
 
-    
-    // ===== FATURAS =====
+function fecharFaturas() {
+mostrarTela(gastos.length > 0 ? 'screenGasto' : 'screenVazio');
+}
 
-    async function abrirFaturas() {
-      mostrarTela('screenFaturas');
-      var saved = localStorage.getItem('fechamento_atual');
-      try {
-        var cfgRes = await fetch(API + '/config');
-        var cfg = await cfgRes.json();
-        if (cfg && cfg.fechamento_atual) {
-          saved = cfg.fechamento_atual;
-          localStorage.setItem('fechamento_atual', saved);
-        }
-      } catch(e) {}
-      if (saved) {
-        document.getElementById('inputFechamento').value = saved;
-        atualizarVencimento(saved);
-        carregarFaturas(saved);
-      }
-    }
+function salvarFechamento() {
+const val = document.getElementById('inputFechamento').value;
+if (!val) return;
+localStorage.setItem('fechamento_atual', val);
+atualizarVencimento(val);
+const parts = val.split('-');
+const dia = parseInt(parts[2]);
+const mesAno = parts[0] + '-' + parts[1];
+fetch(API + '/faturas/configurar', {
+method: 'POST',
+headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({dia_fechamento: dia, mes_ano: mesAno})
+}).catch(e => console.log('fatura config err:', e));
+fetch(API + '/config', {
+method: 'POST',
+headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({fechamento_atual: val})
+}).catch(function(e) { console.log('config save err:', e); });
+carregarFaturas(val);
+}
 
-    function fecharFaturas() {
-      mostrarTela(gastos.length > 0 ? 'screenGasto' : 'screenVazio');
-    }
+function atualizarVencimento(fechamento) {
+const d = new Date(fechamento + 'T12:00:00');
+const fechaAtual = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+const mesVenc = new Date(fechaAtual.getFullYear(), fechaAtual.getMonth(), 25);
+const opts = { day: '2-digit', month: 'long', year: 'numeric' };
+const fmtVenc = mesVenc.toLocaleDateString('pt-BR', opts);
+document.getElementById('faturaVencimento').textContent = 'Fatura atual vence: ' + fmtVenc;
+}
 
-    function salvarFechamento() {
-      const val = document.getElementById('inputFechamento').value;
-      if (!val) return;
-      localStorage.setItem('fechamento_atual', val);
-      atualizarVencimento(val);
-      // Extract day from date string YYYY-MM-DD
-      const parts = val.split('-');
-      const dia = parseInt(parts[2]);
-      const mesAno = parts[0] + '-' + parts[1];
-      // Save to API
-      fetch(API + '/faturas/configurar', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({dia_fechamento: dia, mes_ano: mesAno})
-      }).catch(e => console.log('fatura config err:', e));
-      // Salvar fechamento no backend para persistir entre dispositivos
-      fetch(API + '/config', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({fechamento_atual: val})
-      }).catch(function(e) { console.log('config save err:', e); });
-      carregarFaturas(val);
-    }
+async function carregarFaturas(fechamentoAtual) {
+document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Carregando...</div>';
+try {
+const res = await fetch(API + '/gastos/confirmados');
+if (!res.ok) throw new Error('HTTP ' + res.status);
+const data = await res.json();
+renderFaturas(data, fechamentoAtual);
+} catch(e) {
+document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Erro ao carregar gastos.</div>';
+}
+}
 
-    function atualizarVencimento(fechamento) {
-      const d = new Date(fechamento + 'T12:00:00');
-      // Fatura atual: fecha em fechamento+1mes, vence dia 25 desse mesmo mes
-      // Ex: fechamento 15/06 -> fatura atual fecha 15/07 -> vence 25/07
-      const fechaAtual = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
-      const mesVenc = new Date(fechaAtual.getFullYear(), fechaAtual.getMonth(), 25);
-      const opts = { day: '2-digit', month: 'long', year: 'numeric' };
-      const fmtVenc = mesVenc.toLocaleDateString('pt-BR', opts);
-      document.getElementById('faturaVencimento').textContent = 'Fatura atual vence: ' + fmtVenc;
-    }
+function calcFaturaId(dataCompra, ciclos) {
+for (let i = 0; i < ciclos.length; i++) {
+if (dataCompra >= ciclos[i].inicio && dataCompra <= ciclos[i].fechamento) return i;
+}
+return -1;
+}
 
-    async function carregarFaturas(fechamentoAtual) {
-      document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Carregando...</div>';
-      try {
-        const res = await fetch(API + '/gastos/confirmados');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        renderFaturas(data, fechamentoAtual);
-      } catch(e) {
-        document.getElementById('faturaList').innerHTML = '<div class="hist-loading">Erro ao carregar gastos.</div>';
-      }
-    }
+async function excluirGasto(id) {
+if (!confirm('Excluir este lancamento?')) return;
+try {
+const r = await fetch(API + '/gastos/' + id, {method:'DELETE'});
+if (!r.ok) throw new Error('Erro ' + r.status);
+carregarFaturas(document.getElementById('inputFechamento').value);
+} catch(e) { alert('Erro ao excluir: ' + e.message); }
+}
 
-    function calcFaturaId(dataCompra, ciclos) {
-      // Returns index of ciclo this purchase belongs to (0 = oldest)
-      for (let i = 0; i < ciclos.length; i++) {
-        if (dataCompra >= ciclos[i].inicio && dataCompra <= ciclos[i].fechamento) return i;
-      }
-      return -1;
-    }
+async function editarValor(id, valorAtual) {
+const novoStr = prompt('Novo valor (R$):', String(valorAtual).replace('.',','));
+if (novoStr === null) return;
+const novo = parseFloat(novoStr.replace(',','.'));
+if (isNaN(novo) || novo <= 0) { alert('Valor invalido'); return; }
+try {
+const r = await fetch(API + '/gastos/' + id, {
+method:'PATCH',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({valor: novo})
+});
+if (!r.ok) throw new Error('Erro ' + r.status);
+carregarFaturas(document.getElementById('inputFechamento').value);
+} catch(e) { alert('Erro ao editar: ' + e.message); }
+}
 
-    async function excluirGasto(id) {
-      if (!confirm('Excluir este lanÃ§amento?')) return;
-      try {
-        const r = await fetch(API + '/gastos/' + id, {method:'DELETE'});
-        if (!r.ok) throw new Error('Erro ' + r.status);
-        carregarFaturas(document.getElementById('inputFechamento').value);
-      } catch(e) { alert('Erro ao excluir: ' + e.message); }
-    }
+async function moverFatura(gastoId, mesAtual) {
+var parts = mesAtual.split('-');
+var ano = parseInt(parts[0]); var mes = parseInt(parts[1]);
+var mesAnt = mes === 1 ? (ano-1)+'-12' : ano+'-'+String(mes-1).padStart(2,'0');
+var mesProx = mes === 12 ? (ano+1)+'-01' : ano+'-'+String(mes+1).padStart(2,'0');
+var escolha = confirm('Mover para qual fatura?
+OK = Anterior ('+mesAnt+')
+Cancelar = Proxima ('+mesProx+')');
+var novoMes = escolha ? mesAnt : mesProx;
+try {
+var r = await fetch(API + '/gastos/' + gastoId + '/fatura', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mes_ano: novoMes})});
+if (!r.ok) throw new Error('Erro ' + r.status);
+carregarFaturas(document.getElementById('inputFechamento').value);
+} catch(e) { alert('Erro ao mover: ' + e.message); }
+}
 
-    async function editarValor(id, valorAtual) {
-      const novoStr = prompt('Novo valor (R$):', String(valorAtual).replace('.',','));
-      if (novoStr === null) return;
-      const novo = parseFloat(novoStr.replace(',','.'));
-      if (isNaN(novo) || novo <= 0) { alert('Valor invÃ¡lido'); return; }
-      try {
-        const r = await fetch(API + '/gastos/' + id, {
-          method:'PATCH',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({valor: novo})
-        });
-        if (!r.ok) throw new Error('Erro ' + r.status);
-        carregarFaturas(document.getElementById('inputFechamento').value);
-      } catch(e) { alert('Erro ao editar: ' + e.message); }
-    }
+function toggleAddForm(formId) {
+const el = document.getElementById(formId);
+if (el) el.classList.toggle('visible');
+}
 
-    async function moverFatura(gastoId, mesAtual) {
-      var parts = mesAtual.split('-');
-      var ano = parseInt(parts[0]); var mes = parseInt(parts[1]);
-      var mesAnt = mes === 1 ? (ano-1)+'-12' : ano+'-'+String(mes-1).padStart(2,'0');
-      var mesProx = mes === 12 ? (ano+1)+'-01' : ano+'-'+String(mes+1).padStart(2,'0');
-      var escolha = confirm('Mover para qual fatura?\nOK = Anterior ('+mesAnt+')\nCancelar = Proxima ('+mesProx+')');
-      var novoMes = escolha ? mesAnt : mesProx;
-      try {
-        var r = await fetch(API + '/gastos/' + gastoId + '/fatura', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mes_ano: novoMes})});
-        if (!r.ok) throw new Error('Erro ' + r.status);
-        carregarFaturas(document.getElementById('inputFechamento').value);
-      } catch(e) { alert('Erro ao mover: ' + e.message); }
-    }
+async function adicionarLancamento(mesAno) {
+const desc = (document.getElementById('add-desc-'+mesAno)||{}).value||'';
+const valStr = (document.getElementById('add-val-'+mesAno)||{}).value||'';
+const cat = ((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';
+if (!desc.trim()) { alert('Informe a descricao'); return; }
+const val = parseFloat(valStr.replace(',','.'));
+if (isNaN(val) || val <= 0) { alert('Informe um valor valido'); return; }
+try {
+const r = await fetch(API + '/gastos/manual', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body: JSON.stringify({estabelecimento: desc.trim(), valor: val, moeda: 'BRL', categoria: cat, mes_ano_fatura: mesAno})
+});
+if (!r.ok) throw new Error('Erro ' + r.status);
+carregarFaturas(document.getElementById('inputFechamento').value);
+} catch(e) { alert('Erro ao adicionar: ' + e.message); }
+}
 
-    function toggleAddForm(formId) {
-      const el = document.getElementById(formId);
-      if (el) el.classList.toggle('visible');
-    }
+function renderFaturas(gastosData, fechamentoAtualStr) {
+const fAtual = new Date(fechamentoAtualStr + 'T12:00:00');
+const ciclos = [];
+for (let offset = -2; offset <= 1; offset++) {
+const inicioBase = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate() + 1);
+const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset + 1, fAtual.getDate());
+const vencD = new Date(fechD.getFullYear(), fechD.getMonth(), 25);
+const labelD = fechD;
+ciclos.push({
+inicio: inicioBase.toISOString().slice(0,10),
+fechamento: fechD.toISOString().slice(0,10),
+vencimento: vencD.toISOString().slice(0,10),
+label: labelD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+mesAno: fechD.getFullYear()+'-'+String(fechD.getMonth()+1).padStart(2,'0'),
+tipo: offset < 0 ? 'passada' : offset === 0 ? 'atual' : 'futura',
+itens: []
+});
+}
 
-    async function adicionarLancamento(mesAno) {
-      const desc = (document.getElementById('add-desc-'+mesAno)||{}).value||'';
-      const valStr = (document.getElementById('add-val-'+mesAno)||{}).value||'';
-      const cat = ((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';
-      if (!desc.trim()) { alert('Informe a descriÃ§Ã£o'); return; }
-      const val = parseFloat(valStr.replace(',','.'));
-      if (isNaN(val) || val <= 0) { alert('Informe um valor vÃ¡lido'); return; }
-      try {
-        const r = await fetch(API + '/gastos/manual', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({estabelecimento: desc.trim(), valor: val, moeda: 'BRL', categoria: cat, mes_ano_fatura: mesAno})
-        });
-        if (!r.ok) throw new Error('Erro ' + r.status);
-        carregarFaturas(document.getElementById('inputFechamento').value);
-      } catch(e) { alert('Erro ao adicionar: ' + e.message); }
-    }
+gastosData.forEach(g => {
+const dataCp = g.data_compra;
+if (!dataCp) return;
+const parcTotal = parseInt(g.parcelas_total || 1);
+const moeda = extrairMoeda(g.mensagem_original);
+const valorTotal = parseFloat(g.valor || 0);
+const valorParcela = parcTotal > 1 ? valorTotal / parcTotal : valorTotal;
+for (let parc = 1; parc <= parcTotal; parc++) {
+const baseDate = new Date(dataCp + 'T12:00:00');
+const parcDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + (parc - 1), baseDate.getDate());
+const parcDateStr = parcDate.toISOString().slice(0,10);
+const cicloIdx = calcFaturaId(parcDateStr, ciclos);
+if (cicloIdx === -1) return;
+ciclos[cicloIdx].itens.push({
+id: g.id,
+estabelecimento: g.estabelecimento,
+apelido: g.apelido || '',
+categoria: g.categoria || 'Sem categoria',
+valor: parcTotal > 1 ? valorParcela : valorTotal,
+moeda: moeda,
+parcAtual: parc,
+parcTotal: parcTotal,
+dataCompra: dataCp,
+cartao: g.cartao_final || ''
+});
+}
+});
 
-    function renderFaturas(gastos, fechamentoAtualStr) {
-      // Build last 3 + next 1 billing cycles based on fechamentoAtual
-      const fAtual = new Date(fechamentoAtualStr + 'T12:00:00');
+const html = [...ciclos].reverse().map(c => {
+const totalCiclo = c.itens.reduce((s, i) => s + i.valor, 0);
+const tipoLabel = c.tipo === 'atual' ? 'Atual' : c.tipo === 'futura' ? 'Proxima' : 'Fechada';
+const dtFech = new Date(c.fechamento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
+const dtVenc = new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'});
 
-      // Build array of cycles: [2 months back, 1 month back, current, next]
-      const ciclos = [];
-      for (let offset = -2; offset <= 1; offset++) {
-        // O usuario informa o fechamento do ciclo ANTERIOR.
-        // Ciclo offset=0 (atual): inicio = fAtual+1dia, fecha = fAtual+1mes, vence = dia25 do mes de fecha
-        const inicioBase = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset, fAtual.getDate() + 1);
-        const fechD = new Date(fAtual.getFullYear(), fAtual.getMonth() + offset + 1, fAtual.getDate());
-        const vencD = new Date(fechD.getFullYear(), fechD.getMonth(), 25);
-        const labelD = fechD; // Usa o mes de fechamento para o label
-        ciclos.push({
-          inicio: inicioBase.toISOString().slice(0,10),
-          fechamento: fechD.toISOString().slice(0,10),
-          vencimento: vencD.toISOString().slice(0,10),
-          label: labelD.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
-          tipo: offset < 0 ? 'passada' : offset === 0 ? 'atual' : 'futura',
-          itens: []
-        });
-      }
+const porCat = {};
+c.itens.forEach(item => {
+const cat = item.categoria || 'Sem categoria';
+if (!porCat[cat]) porCat[cat] = { itens: [], subtotal: 0 };
+porCat[cat].itens.push(item);
+porCat[cat].subtotal += item.valor;
+});
 
-      // Assign gastos to ciclos + project installments
-      gastos.forEach(g => {
-        const dataCp = g.data_compra;
-        if (!dataCp) return;
-        const parcTotal = parseInt(g.parcelas_total || 1);
-        const moeda = extrairMoeda(g.mensagem_original);
-        const valorTotal = parseFloat(g.valor || 0);
-        const valorParcela = parcTotal > 1 ? valorTotal / parcTotal : valorTotal;
+const catsSorted = Object.entries(porCat).sort((a,b) => b[1].subtotal - a[1].subtotal);
 
-        for (let parc = 1; parc <= parcTotal; parc++) {
-          const baseDate = new Date(dataCp + 'T12:00:00');
-          const parcDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + (parc - 1), baseDate.getDate());
-          const parcDateStr = parcDate.toISOString().slice(0,10);
+let itensHtml = '';
+if (c.itens.length === 0) {
+itensHtml = '<div class="fatura-empty">Nenhum gasto neste periodo.</div>';
+} else {
+itensHtml = catsSorted.map(([cat, catData]) => {
+const catColor = CORES_CAT[cat.toLowerCase().replace('/','').replace(' ','_')] || CORES_CAT[cat.toLowerCase()] || '#9E9E9E';
+const catSubtotalFmt = 'R$ ' + catData.subtotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+const sorted = catData.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
+const itensDetalhe = sorted.map(item => {
+const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
+const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
+const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
+const valorFmt = sym + item.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+const nomeExib = (item.apelido && item.apelido.trim()) ? item.apelido.trim() : (item.estabelecimento||'?');
+const hasApelido = item.apelido && item.apelido.trim() && item.apelido !== item.estabelecimento;
+return '<div class="fatura-item">' +
+'<div class="fatura-item-nome-wrap">' +
+'<span class="fatura-item-nome">' + nomeExib + parcTag + cartaoTag + '</span>' +
+(hasApelido ? '<span class="fatura-item-nome-orig">' + (item.estabelecimento||'') + '</span>' : '') +
+'</div>' +
+'<div class="fatura-item-actions">' +
+'<span class="fatura-item-valor" onclick="editarValor('' + item.id + '',' + item.valor + ')" title="Editar valor">' + valorFmt + '</span>' +
+'<button class="btn-excluir" onclick="moverFatura(''+item.id+'',''+c.mesAno+'');" title="Mover fatura" style="font-size:12px">&#x21C4;</button>' +
+'<button class="btn-excluir" onclick="excluirGasto('' + item.id + '')" title="Excluir">&#x1F5D1;</button>' +
+'</div></div>';
+}).join('');
+return '<div class="fatura-cat-group">' +
+'<div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid ' + catColor + '">' + cat + '</span><span class="fatura-cat-subtotal">' + catSubtotalFmt + '</span></div>' +
+itensDetalhe + '</div>';
+}).join('');
+}
 
-          const cicloIdx = calcFaturaId(parcDateStr, ciclos);
-          if (cicloIdx === -1) return;
+const totalFmt = 'R$ ' + totalCiclo.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+return '<div class="fatura-card ' + c.tipo + '">' +
+'<div class="fatura-header"><span class="fatura-titulo">Fatura ' + c.label + '</span><span class="fatura-badge ' + c.tipo + '">' + tipoLabel + '</span></div>' +
+'<div class="fatura-datas">Fecha: ' + dtFech + ' &nbsp;|&nbsp; Vence: ' + dtVenc + '</div>' +
+'<div class="fatura-total">' + totalFmt + '</div>' +
+itensHtml +
+'<button class="fatura-add-btn" onclick="toggleAddForm('fatura-add-'+c.mesAno+'')">&#43; Adicionar lancamento</button>' +
+'<div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row">' +
+'<div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div>' +
+'<div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div>' +
+'<div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div>' +
+'<button class="btn-add-salvar" onclick="adicionarLancamento(''+c.mesAno+'')">Salvar</button>' +
+'</div></div></div>';
+}).join('');
 
-          ciclos[cicloIdx].itens.push({
-            id: g.id,
-            estabelecimento: g.estabelecimento,
-            categoria: g.categoria || 'Sem categoria',
-            valor: parcTotal > 1 ? valorParcela : valorTotal,
-            moeda: moeda,
-            parcAtual: parc,
-            parcTotal: parcTotal,
-            dataCompra: dataCp,
-            cartao: g.cartao_final || ''
-          });
-        }
-      });
-
-      // Render cycles (reversed: newest first)
-      const html = [...ciclos].reverse().map(c => {
-        const totalCiclo = c.itens.reduce((s, i) => s + i.valor, 0);
-        const tipoLabel = c.tipo === 'atual' ? 'Atual' : c.tipo === 'futura' ? 'Proxima' : 'Fechada';
-        const dtFech = new Date(c.fechamento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'});
-        const dtVenc = new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'});
-
-        // Group items by category with subtotals
-        const porCat = {};
-        c.itens.forEach(item => {
-          const cat = item.categoria || 'Sem categoria';
-          if (!porCat[cat]) porCat[cat] = { itens: [], subtotal: 0 };
-          porCat[cat].itens.push(item);
-          porCat[cat].subtotal += item.valor;
-        });
-
-        // Sort categories by subtotal desc
-        const catsSorted = Object.entries(porCat).sort((a,b) => b[1].subtotal - a[1].subtotal);
-
-        let itensHtml = '';
-        if (c.itens.length === 0) {
-          itensHtml = '<div class="fatura-empty">Nenhum gasto neste periodo.</div>';
-        } else {
-          itensHtml = catsSorted.map(([cat, catData]) => {
-            const catColor = CORES_CAT[cat.toLowerCase().replace('/','').replace(' ','_')] || CORES_CAT[cat.toLowerCase()] || '#9E9E9E';
-            const catSubtotalFmt = 'R$ ' + catData.subtotal.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-            const sorted = catData.itens.slice().sort((a,b) => b.dataCompra.localeCompare(a.dataCompra));
-            const itensDetalhe = sorted.map(item => {
-              const parcTag = item.parcTotal > 1 ? '<span class="fatura-item-parcela">' + item.parcAtual + '/' + item.parcTotal + '</span>' : '';
-              const cartaoTag = item.cartao ? '<span style="font-size:10px;color:#aaa;margin-left:4px;">****' + item.cartao + '</span>' : '';
-              const sym = SIMBOLOS_MOEDA[item.moeda] || item.moeda + ' ';
-              const valorFmt = sym + item.valor.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-              return '<div class="fatura-item">' +
-              '<span class="fatura-item-nome">' + (item.estabelecimento||'?') + parcTag + cartaoTag + '</span>' +
-              '<div class="fatura-item-actions">' +
-              '<span class="fatura-item-valor" onclick="editarValor(\'' + item.id + '\',' + item.valor + ')" title="Editar valor">' + valorFmt + '</span>' +
-'<button class="btn-excluir" onclick="moverFatura(\''+item.id+'\',\''+c.mesAno+'\');" title="Mover fatura" style="font-size:12px">&#x21C4;</button>' +
-                            '<button class="btn-excluir" onclick="excluirGasto(\'' + item.id + '\')" title="Excluir">&#x1F5D1;</button>' +
-              '</div></div>';
-            }).join('');
-            return '<div class="fatura-cat-group">' +
-              '<div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid ' + catColor + '">' + cat + '</span><span class="fatura-cat-subtotal">' + catSubtotalFmt + '</span></div>' +
-              itensDetalhe + '</div>';
-          }).join('');
-        }
-
-        const sym = 'R$ ';
-        const totalFmt = sym + totalCiclo.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-        return '<div class="fatura-card ' + c.tipo + '">' +
-          '<div class="fatura-header"><span class="fatura-titulo">Fatura ' + c.label + '</span><span class="fatura-badge ' + c.tipo + '">' + tipoLabel + '</span></div>' +
-          '<div class="fatura-datas">Fecha: ' + dtFech + ' &nbsp;|&nbsp; Vence: ' + dtVenc + '</div>' +
-          '<div class="fatura-total">' + totalFmt + '</div>' +
-          itensHtml +
-          '<button class="fatura-add-btn" onclick="toggleAddForm(\'fatura-add-'+c.mesAno+'\')">&#43; Adicionar lan&ccedil;amento</button>' +
-          '<div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row">' +
-          '<div class="fatura-add-field"><label>Descri&ccedil;&atilde;o</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div>' +
-          '<div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div>' +
-          '<div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div>' +
-          '<button class="btn-add-salvar" onclick="adicionarLancamento(\''+c.mesAno+'\')">Salvar</button>' +
-          '</div></div></div>';
-      }).join('');
-
-      document.getElementById('faturaList').innerHTML = html || '<div class="hist-loading">Nenhum dado.</div>';
-    }
+document.getElementById('faturaList').innerHTML = html || '<div class="hist-loading">Nenhum dado.</div>';
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-      carregarGastos();
-      registerServiceWorker();
-    });
-  </script>
+carregarGastos();
+registerServiceWorker();
+});
+</script>
 </body>
 </html>
