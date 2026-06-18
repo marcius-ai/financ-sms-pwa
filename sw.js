@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanmm-v6';
+const CACHE_NAME = 'finanmm-v7';
 const API_BASE = 'https://web-production-09718.up.railway.app';
 
 const ASSETS = [
@@ -6,7 +6,6 @@ const ASSETS = [
   './icon-192.png', './icon-512.png'
 ];
 
-// Install
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
@@ -14,7 +13,6 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Activate
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -24,7 +22,6 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for assets
 self.addEventListener('fetch', event => {
   const url = event.request.url;
   if (url.startsWith(API_BASE)) {
@@ -36,7 +33,6 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// Push notification
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data.json(); } catch(e) {}
