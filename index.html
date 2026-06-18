@@ -345,7 +345,7 @@ var ai=faturas.findIndex(function(f){return f.tipo==='atual';});if(ai<0) ai=0;
 var html='<div id="graf-btns" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;width:100%;max-width:480px;">';
 faturas.forEach(function(f,i){html+='<button data-idx="'+i+'" style="padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';});
 html+='</div>';
-html+='<div class="graf-toggle"><button class="graf-toggle-btn active" id="btnGrafCat" onclick="trocarModoGraf(\"categoria\")">Por Categoria</button><button class="graf-toggle-btn" id="btnGrafEstab" onclick="trocarModoGraf(\"estabelecimento\")">Por Estabelecimento</button></div>';
+html+='<div class="graf-toggle"><button class="graf-toggle-btn active" id="btnGrafCat" onclick="trocarModoGraf(this)">Por Categoria</button><button class="graf-toggle-btn" id="btnGrafEstab" onclick="trocarModoGraf(this)">Por Estabelecimento</button></div>';
 html+='<div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div><div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div>';
 document.getElementById('graficosContent').innerHTML=html;
 document.querySelectorAll('[data-idx]').forEach(function(btn){btn.addEventListener('click',function(){var idx=parseInt(btn.getAttribute('data-idx'));document.querySelectorAll('[data-idx]').forEach(function(b){b.style.background='rgba(255,255,255,0.15)';});btn.style.background='#3949ab';_grafFatura=faturas[idx];renderGraficoAtivo();});});
@@ -354,10 +354,13 @@ _grafModo='categoria';
 renderGraficoAtivo();
 }
 var _grafFatura=null;
-function trocarModoGraf(modo){
-_grafModo=modo;
+function trocarModoGraf(btn){
 var btnCat=document.getElementById('btnGrafCat'),btnEstab=document.getElementById('btnGrafEstab');
-if(btnCat&&btnEstab){btnCat.className='graf-toggle-btn'+(modo==='categoria'?' active':'');btnEstab.className='graf-toggle-btn'+(modo==='estabelecimento'?' active':'');}
+if(!btnCat||!btnEstab) return;
+var isCat=(btn===btnCat||btn.id==='btnGrafCat');
+_grafModo=isCat?'categoria':'estabelecimento';
+btnCat.className='graf-toggle-btn'+(isCat?' active':'');
+btnEstab.className='graf-toggle-btn'+(!isCat?' active':'');
 renderGraficoAtivo();
 }
 function renderGraficoAtivo(){
