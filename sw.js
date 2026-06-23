@@ -1,8 +1,8 @@
-const CACHE_NAME = 'finanmm-v11';
+const CACHE_NAME = 'finanmm-v12';
 const API_BASE = 'https://web-production-09718.up.railway.app';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', event => { const url = event.request.url; if (url.startsWith(API_BASE)) { event.respondWith(fetch(event.request)); return; } event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request))); });
-self.addEventListener('push', event => { let data = {}; try { data = event.data.json(); } catch(e) {} const title = data.title || 'Finan$M$'; const options = { body: data.body || 'Novo gasto detectado!', icon: './icon-192.png', badge: './icon-192.png', data: { url: data.url || './' } }; event.waitUntil(self.registration.showNotification(title, options)); });
-self.addEventListener('notificationclick', event => { event.notification.close(); event.waitUntil(clients.openWindow('./')); });
+self.addEventListener('push', event => { let data = {}; try { data = event.data.json(); } catch(e) {} const title = data.title || 'Novo gasto no cartão!'; const options = { body: data.body || 'Novo gasto detectado!', icon: './icon-192.png', badge: './icon-192.png', data: { url: data.url || './', gastoId: data.gastoId || null } }; event.waitUntil(self.registration.showNotification(title, options)); });
+self.addEventListener('notificationclick', event => { event.notification.close(); const notifData = event.notification.data || {}; const targetUrl = notifData.url || './'; event.waitUntil(clients.matchAll({type: 'window', includeUncontrolled: true}).then(clientList => { for (const client of clientList) { if (client.url.includes(self.location.origin) && 'focus' in client) { client.postMessage({type: 'OPEN_GASTO', gastoId: notifData.gastoId, url: targetUrl}); return client.focus(); } } if (clients.openWindow) return clients.openWindow(targetUrl); })); });
