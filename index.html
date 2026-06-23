@@ -141,11 +141,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
 <button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
 <button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
-<button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">&#128276; ...</button>
+<button id="btnNotif" class="btn-notif" onclick="toggleNotif()">&#128276; ...</button>
 </div>
 </header>
 <div id="screenLoading" class="state-screen"><div class="spinner"></div><div class="state-subtitle">Buscando gastos...</div></div>
-<div id="screenVazio" class="state-screen hidden"><div class="state-icon">OK</div><div class="state-title">Tudo em dia!</div><div class="state-subtitle">Nenhum gasto pendente de classificacao.</div><button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button><button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button><button class="btn-reload" style="background:#1565c0;margin-top:0;" onclick="requestNotifPermission()" id="btnNotifVazio">&#128276; Ativar Notificacoes</button><div id="proximoFechamento" style="margin-top:12px;font-size:13px;color:rgba(255,255,255,0.7);"></div></div>
+<div id="screenVazio" class="state-screen hidden"><div class="state-icon">OK</div><div class="state-title">Tudo em dia!</div><div class="state-subtitle">Nenhum gasto pendente de classificacao.</div><button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button><button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button><button class="btn-reload" style="background:#1565c0;margin-top:0;" onclick="toggleNotif()" id="btnNotifVazio">&#128276; Ativar Notificacoes</button><div id="proximoFechamento" style="margin-top:12px;font-size:13px;color:rgba(255,255,255,0.7);"></div></div>
 <div id="screenErro" class="state-screen hidden"><div class="state-icon">Erro</div><div id="erroMsg" class="state-title">Erro de conexao</div><div class="state-subtitle">Nao foi possivel conectar ao servidor.</div><button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button></div>
 <div id="screenGasto" class="hidden" style="width:100%;max-width:480px;margin:0 auto;">
 <div class="gasto-card">
@@ -342,6 +342,23 @@ var reg=await navigator.serviceWorker.ready;
 var sub=await reg.pushManager.getSubscription();
 atualizarBotaoNotif(!!sub);
 }catch(e){atualizarBotaoNotif(false);}
+}
+async function toggleNotif(){
+try{
+if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){showToast('Push nao suportado neste navegador','error');return;}
+var reg=await navigator.serviceWorker.ready;
+var sub=await reg.pushManager.getSubscription();
+if(sub){await desativarNotif(sub);}else{await requestNotifPermission();}
+}catch(e){showToast('Erro: '+e.message,'error');}
+}
+async function desativarNotif(sub){
+try{
+var endpoint=sub.endpoint;
+await sub.unsubscribe();
+await fetch(API+'/push/unsubscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:endpoint})}).catch(function(e){console.log('unsub backend err',e);});
+showToast('Notificacoes desativadas','success');
+atualizarBotaoNotif(false);
+}catch(e){showToast('Erro: '+e.message,'error');}
 }
 async function requestNotifPermission(){try{var p=await Notification.requestPermission();if(p!=='granted'){showToast('Notificacoes bloqueadas','error');atualizarBotaoNotif(false);return;}await registerAndSubscribe();}catch(e){showToast('Erro: '+e.message,'error');atualizarBotaoNotif(false);}}
 async function registerAndSubscribe(){try{var reg=await navigator.serviceWorker.ready;var res=await fetch(API+'/push/vapid-public-key');var data=await res.json();var publicKey=data.publicKey;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});var sj=sub.toJSON();await fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})});showToast('Notificacoes ativadas!','success');atualizarBotaoNotif(true);}catch(e){showToast('Erro: '+e.message,'error');atualizarBotaoNotif(false);}}
