@@ -141,7 +141,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <button class="btn-historico" onclick="abrirHistorico()">&#128197; Historico</button>
 <button class="btn-historico" onclick="abrirGraficos()">&#128202; Graficos</button>
 <button class="btn-historico" onclick="abrirFaturas()">&#128196; Faturas</button>
-<button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">&#128276; Notif</button>
+<button id="btnNotif" class="btn-notif" onclick="requestNotifPermission()">&#128276; ...</button>
 </div>
 </header>
 <div id="screenLoading" class="state-screen"><div class="spinner"></div><div class="state-subtitle">Buscando gastos...</div></div>
@@ -328,8 +328,23 @@ await abrirHistorico();
 }catch(e){showToast('Erro: '+e.message,'error');}
 }
 function urlBase64ToUint8Array(b64){var pad='='.repeat((4-b64.length%4)%4);var base64=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');var raw=atob(base64);return Uint8Array.from([...raw].map(function(c){return c.charCodeAt(0);}));}
-async function requestNotifPermission(){try{var p=await Notification.requestPermission();if(p!=='granted'){showToast('Notificacoes bloqueadas','error');return;}await registerAndSubscribe();}catch(e){showToast('Erro: '+e.message,'error');}}
-async function registerAndSubscribe(){try{var reg=await navigator.serviceWorker.ready;var res=await fetch(API+'/push/vapid-public-key');var data=await res.json();var publicKey=data.publicKey;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});var sj=sub.toJSON();await fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})});showToast('Notificacoes ativadas!','success');document.getElementById('btnNotif').textContent='Notif ativa';document.getElementById('btnNotif').style.background='#4CAF50';var _nb=document.getElementById('btnNotifVazio');if(_nb)_nb.style.display='none';}catch(e){showToast('Erro: '+e.message,'error');}}
+function atualizarBotaoNotif(ativo){
+var b=document.getElementById('btnNotif');
+if(b){if(ativo){b.innerHTML='&#128276; Ativadas &#10003;';b.style.background='#4CAF50';b.style.color='#fff';}else{b.innerHTML='&#128277; Desativadas';b.style.background='#e53935';b.style.color='#fff';}}
+var bv=document.getElementById('btnNotifVazio');
+if(bv){if(ativo){bv.innerHTML='&#128276; Notificacoes ativadas &#10003;';bv.style.background='#4CAF50';}else{bv.innerHTML='&#128277; Ativar Notificacoes';bv.style.background='#1565c0';}}
+}
+async function checarStatusNotif(){
+try{
+if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){atualizarBotaoNotif(false);return;}
+if(Notification.permission!=='granted'){atualizarBotaoNotif(false);return;}
+var reg=await navigator.serviceWorker.ready;
+var sub=await reg.pushManager.getSubscription();
+atualizarBotaoNotif(!!sub);
+}catch(e){atualizarBotaoNotif(false);}
+}
+async function requestNotifPermission(){try{var p=await Notification.requestPermission();if(p!=='granted'){showToast('Notificacoes bloqueadas','error');atualizarBotaoNotif(false);return;}await registerAndSubscribe();}catch(e){showToast('Erro: '+e.message,'error');atualizarBotaoNotif(false);}}
+async function registerAndSubscribe(){try{var reg=await navigator.serviceWorker.ready;var res=await fetch(API+'/push/vapid-public-key');var data=await res.json();var publicKey=data.publicKey;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});var sj=sub.toJSON();await fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})});showToast('Notificacoes ativadas!','success');atualizarBotaoNotif(true);}catch(e){showToast('Erro: '+e.message,'error');atualizarBotaoNotif(false);}}
 async function registerServiceWorker(){if('serviceWorker' in navigator){try{await navigator.serviceWorker.register('./sw.js'); navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.type==='OPEN_GASTO'&&e.data.gastoId){carregarGastos(e.data.gastoId);}});}catch(e){}}}
 async function abrirGraficos(){
 mostrarTela('screenGraficos');document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Carregando...</div>';
@@ -402,7 +417,7 @@ return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span cla
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 }
-document.addEventListener('DOMContentLoaded',function(){carregarGastos();registerServiceWorker();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);});
+document.addEventListener('DOMContentLoaded',function(){carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);});
 </script>
 </body>
 </html>
