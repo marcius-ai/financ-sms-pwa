@@ -221,7 +221,7 @@ let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNome
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
 const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1','#d81b60','#6d4c41','#546e7a','#c0ca33','#00897b','#f4511e','#1e88e5','#7cb342','#fdd835'];
-const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',bares:'Bares/Restaurantes',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Mobilidade',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
+const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Mobilidade',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
 function labelCategoria(cat){return CAT_LABELS[cat]||capitalizarPrimeira(cat||'');}
 let _chartAtivo = null, _faturasDados = [], _grafModo = 'categoria';
