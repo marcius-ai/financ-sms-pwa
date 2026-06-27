@@ -49,6 +49,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-cat:active { transform: scale(0.96); }
 .btn-cat.alimentacao { color:#2e7d32; background:#e8f5e9; border-color:#a5d6a7; }
 .btn-cat.assinaturas { color:#1565c0; background:#e3f2fd; border-color:#90caf9; }
+.btn-cat.ativos { color:#4e342e; background:#efebe9; border-color:#bcaaa4; }
 .btn-cat.bares { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
 .btn-cat.caridade { color:#880e4f; background:#fce4ec; border-color:#f48fb1; }
 .btn-cat.empresa { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
@@ -159,6 +160,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div class="cat-grid">
 <button class="btn-cat alimentacao" onclick="confirmarCategoria('alimentacao')">Alimentacao</button>
 <button class="btn-cat assinaturas" onclick="confirmarCategoria('assinaturas')">Assinaturas</button>
+<button class="btn-cat ativos" onclick="confirmarCategoria('ativos')">Ativos</button>
 <button class="btn-cat bares" onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="confirmarCategoria('caridade')">Caridade</button>
 <button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
@@ -200,6 +202,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div class="cat-grid">
 <button class="btn-cat alimentacao" onclick="reclassificar('alimentacao')">Alimentacao</button>
 <button class="btn-cat assinaturas" onclick="reclassificar('assinaturas')">Assinaturas</button>
+<button class="btn-cat ativos" onclick="reclassificar('ativos')">Ativos</button>
 <button class="btn-cat bares" onclick="reclassificar('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="reclassificar('caridade')">Caridade</button>
 <button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
@@ -219,9 +222,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 const API = 'https://web-production-09718.up.railway.app';
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
-const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
+const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
 const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1','#d81b60','#6d4c41','#546e7a','#c0ca33','#00897b','#f4511e','#1e88e5','#7cb342','#fdd835'];
-const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Mobilidade',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
+const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',ativos:'Ativos',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Mobilidade',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
 function labelCategoria(cat){return CAT_LABELS[cat]||capitalizarPrimeira(cat||'');}
 let _chartAtivo = null, _faturasDados = [], _grafModo = 'categoria';
