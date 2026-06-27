@@ -74,6 +74,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .hist-item-data { font-size:11px; color:#999; margin-top:2px; }
 .hist-item-cat { font-size:11px; font-weight:700; padding:4px 10px; border-radius:12px; background:#e8eaf6; color:#3949ab; white-space:nowrap; flex-shrink:0; }
 .hist-loading { color:rgba(255,255,255,0.7); text-align:center; padding:32px; }
+#histSearch::placeholder { color:rgba(255,255,255,0.6); }
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; display:flex; align-items:flex-end; justify-content:center; }
 .modal-overlay.hidden { display:none !important; }
 .modal-box { background:#1a237e; border-radius:24px 24px 0 0; padding:20px 16px 32px; width:100%; max-width:480px; max-height:80vh; overflow-y:auto; }
@@ -174,7 +175,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <button class="btn-cat vestuario" onclick="confirmarCategoria('vestuario')">Vestuario</button>
 </div>
 </div>
-<div id="screenHistorico" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button><div class="hist-title">&#128197; Historico</div></div><div id="histList" class="hist-list"><div class="hist-loading">Carregando...</div></div></div>
+<div id="screenHistorico" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button><div class="hist-title">&#128197; Historico</div></div><div style="width:100%;max-width:480px;margin-bottom:12px;"><input type="text" id="histSearch" oninput="renderHistorico()" placeholder="&#128269; Buscar nome, categoria, valor ou data..." autocomplete="off" style="width:100%;padding:10px 14px;border:none;border-radius:20px;font-size:14px;outline:none;background:rgba(255,255,255,0.15);color:#fff;" /></div><div id="histList" class="hist-list"><div class="hist-loading">Carregando...</div></div></div>
 <div id="screenGraficos" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharGraficos()">&#8592; Voltar</button><div class="hist-title">&#128202; Graficos</div></div><div id="graficosContent" style="width:100%;max-width:480px;"><div class="hist-loading">Carregando...</div></div></div>
 <div id="screenFaturas" class="hidden">
 <div class="hist-header"><button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button><div class="hist-title">&#128196; Faturas</div></div>
@@ -289,16 +290,30 @@ abrirReclass(g.id,nomeExib,g.categoria||'?',valorFmt,g.estabelecimento||'',g.ape
 }
 async function abrirHistorico() {
 mostrarTela('screenHistorico');
+var _hs=document.getElementById('histSearch'); if(_hs) _hs.value='';
 document.getElementById('histList').innerHTML='<div class="hist-loading">Carregando...</div>';
 try{
 var res=await fetch(API+'/gastos/confirmados'); if(!res.ok) throw new Error('HTTP '+res.status);
 var data=await res.json(); _histData=data||[];
-if(!data||data.length===0){document.getElementById('histList').innerHTML='<div class="hist-loading">Nenhum gasto classificado ainda.</div>';return;}
-document.getElementById('histList').innerHTML=data.map(function(g,idx){
+renderHistorico();
+}catch(e){document.getElementById('histList').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
+}
+function _matchHist(g,q){
+if(!q) return true;
+q=q.toLowerCase().trim();
+var campos=[(g.apelido||''),(g.estabelecimento||''),(g.categoria||''),(g.data_compra||''),String(g.valor||''),String(g.valor||'').replace('.',',')];
+return campos.some(function(c){return String(c).toLowerCase().indexOf(q)>=0;});
+}
+function renderHistorico(){
+var lista=document.getElementById('histList'); if(!lista) return;
+if(!_histData||_histData.length===0){lista.innerHTML='<div class="hist-loading">Nenhum gasto classificado ainda.</div>';return;}
+var q=(document.getElementById('histSearch')||{}).value||'';
+var html=_histData.map(function(g,idx){return [g,idx];}).filter(function(p){return _matchHist(p[0],q);}).map(function(p){
+var g=p[0],idx=p[1];
 var nomeExib=nomeExibicao(g),catLabel=g.categoria||'?',moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG),dataFmt=formatarData(g.data_compra),horaFmt=formatarHora(g.hora_compra),hasApelido=g.apelido&&g.apelido.trim();
 return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div class="hist-item-cat">'+catLabel+'</div></div>';
 }).join('');
-}catch(e){document.getElementById('histList').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
+lista.innerHTML=html||'<div class="hist-loading">Nenhum resultado para "'+q+'".</div>';
 }
 function fecharHistorico() { if(gastos.length>0&&indexAtual<gastos.length) mostrarTela('screenGasto'); else mostrarTela('screenVazio'); }
 function abrirReclass(id,nome,catAtual,valor,nomeOrig,apelidoAtual) {
