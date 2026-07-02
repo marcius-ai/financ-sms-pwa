@@ -268,10 +268,9 @@ document.getElementById('progressText').textContent=(indexAtual+1)+' de '+gastos
 var sugKey=normalizarCategoria(g.categoria_sugerida);
 var box=document.getElementById('sugestaoBox'),lbl=document.getElementById('catLabelSelecione');
 if(box){
-if(sugKey){
+if(sugKey && apelido){
 var cor=CORES_CAT[sugKey]||'#3949ab';
-var topo=apelido?'Você já gastou aqui. É '+labelCategoria(sugKey)+'?':'Sugestão: '+labelCategoria(sugKey);
-box.innerHTML='<div class="sug-label">'+topo+'</div><button class="btn-sug" style="background:'+cor+';" onclick="confirmarCategoria(\''+sugKey+'\')">&#10003; Confirmar: '+labelCategoria(sugKey)+'</button>';
+box.innerHTML='<div class="sug-label">Você já gastou aqui antes. É '+labelCategoria(sugKey)+'?</div><button class="btn-sug" style="background:'+cor+';" onclick="confirmarCategoria(\''+sugKey+'\')">&#10003; Confirmar: '+labelCategoria(sugKey)+'</button>';
 box.style.display='';
 if(lbl) lbl.textContent='OU ESCOLHA OUTRA CATEGORIA';
 }else{
