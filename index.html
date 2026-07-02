@@ -96,6 +96,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #toast.show { transform:translateX(-50%) translateY(0); }
 #toast.success { background:#2e7d32; }
 #toast.error { background:#c62828; }
+#appVersao { position:fixed; bottom:4px; right:8px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.45); z-index:60; pointer-events:none; letter-spacing:0.5px; }
 #screenGraficos { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; overflow-y: auto; color: #fff; }
 .graf-toggle { display:flex; gap:0; background:rgba(255,255,255,0.1); border-radius:20px; padding:3px; margin-bottom:14px; width:100%; max-width:480px; }
 .graf-toggle-btn { flex:1; padding:7px 12px; border-radius:17px; border:none; background:transparent; color:rgba(255,255,255,0.6); font-weight:700; font-size:12px; cursor:pointer; transition:all 0.2s; }
@@ -222,9 +223,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 </div>
 </div>
+<div id="appVersao"></div>
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
+const APP_VERSION = 'v30';
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
@@ -489,7 +492,7 @@ return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span cla
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 }
-document.addEventListener('DOMContentLoaded',function(){carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);});
+document.addEventListener('DOMContentLoaded',function(){var _v=document.getElementById('appVersao');if(_v)_v.textContent=APP_VERSION;carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);});
 </script>
 </body>
 </html>
