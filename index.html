@@ -227,7 +227,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
@@ -432,7 +432,7 @@ function mesFaturaDeData(d,diaFech){var y=d.getFullYear(),m=d.getMonth()+1,day=d
 function contarMesesParcelasPendentes(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var mesAtual=mesFaturaDeData(new Date(),diaFech);var meses={};(lista||[]).forEach(function(g){var pt=parseInt(g.parcelas_total||1);if(pt<=1||!g.data_compra)return;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);if(mf>=mesAtual){meses[mf]=(meses[mf]||0)+1;}}});return Object.keys(meses).length;}
 function renderGraficosUI(faturas,pendMeses){
 var ai=faturas.findIndex(function(f){return f.tipo==='atual';});if(ai<0) ai=0;
-var html='';if(pendMeses&&pendMeses>0){html+='<div style="background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.4);border-radius:14px;padding:10px 14px;margin-bottom:12px;width:100%;max-width:480px;text-align:center;color:#ffe082;font-size:13px;font-weight:700;">&#128204; Parcelas pendentes em '+pendMeses+' fatura'+(pendMeses>1?'s':'')+'</div>';}html+='<div id="graf-btns" style="display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;margin-bottom:14px;padding-bottom:4px;width:100%;max-width:480px;">';
+var html='<div id="graf-btns" style="display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;margin-bottom:14px;padding-bottom:4px;width:100%;max-width:480px;">';
 faturas.forEach(function(f,i){html+='<button data-idx="'+i+'" style="flex-shrink:0;padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';});
 html+='</div>';
 html+='<div class="graf-toggle"><button class="graf-toggle-btn active" id="btnGrafCat" onclick="trocarModoGraf(this)">Por Categoria</button><button class="graf-toggle-btn" id="btnGrafEstab" onclick="trocarModoGraf(this)">Por Estabelecimento</button></div>';
