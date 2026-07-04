@@ -227,7 +227,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v34';
+const APP_VERSION = 'v35';
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
@@ -396,6 +396,7 @@ if(Notification.permission!=='granted'){atualizarBotaoNotif(false);return;}
 var reg=await navigator.serviceWorker.ready;
 var sub=await reg.pushManager.getSubscription();
 atualizarBotaoNotif(!!sub);
+if(sub){var sj=sub.toJSON();fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})}).catch(function(){});}
 }catch(e){atualizarBotaoNotif(false);}
 }
 async function toggleNotif(){
@@ -415,8 +416,8 @@ showToast('Notificacoes desativadas','success');
 atualizarBotaoNotif(false);
 }catch(e){showToast('Erro: '+e.message,'error');}
 }
-async function requestNotifPermission(){try{var p=await Notification.requestPermission();if(p!=='granted'){showToast('Notificacoes bloqueadas','error');atualizarBotaoNotif(false);return;}await registerAndSubscribe();}catch(e){showToast('Erro: '+e.message,'error');atualizarBotaoNotif(false);}}
-async function registerAndSubscribe(){try{var reg=await navigator.serviceWorker.ready;try{var prev=await reg.pushManager.getSubscription();if(prev){await prev.unsubscribe();}}catch(e){}var res=await fetch(API+'/push/vapid-public-key');var data=await res.json();var publicKey=data.publicKey;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});var sj=sub.toJSON();var r=await fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})});if(!r.ok) throw new Error('servidor respondeu HTTP '+r.status);showToast('Notificacoes ativadas!','success');atualizarBotaoNotif(true);}catch(e){showToast('Erro ao ativar: '+e.message,'error');atualizarBotaoNotif(false);}}
+async function requestNotifPermission(){try{var p=await Notification.requestPermission();if(p!=='granted'){showToast('Notificacoes bloqueadas','error');try{alert('Permissao retornou: "'+p+'".\nSe for "denied", libere no Chrome: cadeado/menu > Permissoes do site > Notificacoes > Permitir.');}catch(_){}atualizarBotaoNotif(false);return;}await registerAndSubscribe();}catch(e){showToast('Erro: '+e.message,'error');try{alert('Erro ao pedir permissao: '+(e&&e.message?e.message:e));}catch(_){}atualizarBotaoNotif(false);}}
+async function registerAndSubscribe(){try{var reg=await navigator.serviceWorker.ready;try{var prev=await reg.pushManager.getSubscription();if(prev){await prev.unsubscribe();}}catch(e){}var res=await fetch(API+'/push/vapid-public-key');var data=await res.json();var publicKey=data.publicKey;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});var sj=sub.toJSON();var r=await fetch(API+'/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:sj.endpoint,keys:sj.keys})});if(!r.ok) throw new Error('servidor respondeu HTTP '+r.status);showToast('Notificacoes ativadas!','success');atualizarBotaoNotif(true);}catch(e){showToast('Erro ao ativar: '+e.message,'error');try{alert('Falha ao ativar notificacao:\n'+(e&&e.message?e.message:e));}catch(_){}atualizarBotaoNotif(false);}}
 async function registerServiceWorker(){if('serviceWorker' in navigator){try{await navigator.serviceWorker.register('./sw.js'); navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.type==='OPEN_GASTO'&&e.data.gastoId){carregarGastos(e.data.gastoId);}});}catch(e){}}}
 async function abrirGraficos(){
 mostrarTela('screenGraficos');document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Carregando...</div>';
