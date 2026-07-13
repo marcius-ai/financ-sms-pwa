@@ -130,6 +130,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-excluir { background:none;border:none;cursor:pointer;color:#ccc;font-size:14px;padding:2px 4px;border-radius:4px;transition:color 0.2s;line-height:1; }
 .btn-excluir:hover { color:#e53935; }
 .fatura-add-btn { display:flex;align-items:center;gap:6px;padding:8px 0 2px 0;margin-top:8px;border-top:1px dashed #e0e0e0;color:#3949ab;font-size:12px;font-weight:700;cursor:pointer;background:none;border:none;width:100%; }
+.fatura-conc-btn { display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;margin-top:10px;border:1.5px solid #3949ab;border-radius:10px;color:#3949ab;font-size:13px;font-weight:800;cursor:pointer;background:#eef1ff;width:100%; }
+.conc-row { display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:6px;font-size:13px;gap:8px; }
+.conc-falta { background:#ffebee;color:#b71c1c; }
+.conc-sobra { background:#fff8e1;color:#8d6e00; }
+.conc-nome { font-weight:700; }
+.conc-sub { font-size:11px;opacity:0.85; }
 .fatura-add-form { margin-top:8px;padding:10px;background:#f9f9f9;border-radius:8px;display:none; }
 .fatura-add-form.visible { display:block; }
 .fatura-add-row { display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end; }
@@ -139,6 +145,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-add-salvar { background:#3949ab;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;align-self:flex-end; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
 <header class="app-header">
@@ -223,11 +230,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 </div>
 </div>
+<div id="modalConciliar" class="modal-overlay hidden" onclick="fecharConciliacao(event)">
+<div class="modal-box" onclick="event.stopPropagation()">
+<div class="modal-drag"></div>
+<div class="modal-title" id="concTitulo">Conciliar fatura</div>
+<div class="modal-sub">Suba o PDF da fatura do banco. Comparo por data e valor e mostro o que falta, o que sobra e a diferenca.</div>
+<label for="concFile" style="display:block;background:#3949ab;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;margin-bottom:12px;">&#128206; Escolher PDF da fatura</label>
+<input type="file" id="concFile" accept="application/pdf" onchange="rodarConciliacao()" style="display:none;" />
+<div id="concResultado"></div>
+</div>
+</div>
 <div id="appVersao"></div>
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
+try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
@@ -478,6 +496,43 @@ async function excluirGasto(id){if(!confirm('Excluir este lancamento?')) return;
 async function editarValor(id,valorAtual){var novoStr=prompt('Novo valor (R$):',String(valorAtual).replace('.',','));if(novoStr===null) return;var novo=parseFloat(novoStr.replace(',','.'));if(isNaN(novo)||novo<=0){alert('Valor invalido');return;}try{var r=await fetch(API+'/gastos/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novo})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao editar: '+e.message);}}
 async function moverFatura(gastoId,cicloIdx){var c=_faturasCiclos[cicloIdx];if(!c) return;var mesAtual=c.mesAno,parts=mesAtual.split('-'),ano=parseInt(parts[0]),mes=parseInt(parts[1]),mesAnt=mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0'),mesProx=mes===12?(ano+1)+'-01':ano+'-'+String(mes+1).padStart(2,'0'),escolha=confirm('Mover para qual fatura? OK=Anterior ('+mesAnt+') Cancelar=Proxima ('+mesProx+')'),novoMes=escolha?mesAnt:mesProx;try{var r=await fetch(API+'/gastos/'+gastoId+'/fatura',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mes_ano:novoMes})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao mover: '+e.message);}}
 function toggleAddForm(formId){var el=document.getElementById(formId);if(el) el.classList.toggle('visible');}
+var _conciliarCiclo=null;
+function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||null;if(!_conciliarCiclo){showToast('Fatura nao encontrada','error');return;}document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
+function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
+function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
+async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var byY={};content.items.forEach(function(it){var y=Math.round(it.transform[5]);(byY[y]=byY[y]||[]).push({x:it.transform[4],s:it.str});});Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){var line=byY[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
+async function rodarConciliacao(){
+var fInput=document.getElementById('concFile');var file=fInput&&fInput.files?fInput.files[0]:null;if(!file){return;}
+var out=document.getElementById('concResultado');
+out.innerHTML='<div style="text-align:center;color:#fff;padding:16px;">Lendo o PDF e conciliando...</div>';
+try{
+if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra o app.');
+var texto=await _extrairTextoPDF(file);
+if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
+var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
+if(!res.ok) throw new Error('Servidor HTTP '+res.status);
+var data=await res.json();var extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});
+if(extrato.length===0) throw new Error('Nao encontrei lancamentos no PDF.');
+_renderConciliacao(extrato);
+}catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>';}
+}
+function _renderConciliacao(extrato){
+var out=document.getElementById('concResultado');
+var appItens=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).map(function(it){return {data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):''};});
+var stmt=extrato.map(function(s){return {s:{data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||''},used:false};});
+var batidos=[],sobra=[];
+appItens.forEach(function(a){var f=stmt.find(function(x){return !x.used&&x.s.data===a.data&&Math.abs(x.s.valor-a.valor)<=0.02;});if(f){f.used=true;batidos.push(a);}else{sobra.push(a);}});
+var falta=stmt.filter(function(x){return !x.used;}).map(function(x){return x.s;});
+var totApp=appItens.reduce(function(s,i){return s+i.valor;},0),totExt=stmt.reduce(function(s,i){return s+i.s.valor;},0),dif=totExt-totApp;
+function fmt(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+var okZero=Math.abs(dif)<=0.02&&falta.length===0&&sobra.length===0;
+var html='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:12px;color:#fff;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>App</span><span>'+fmt(totApp)+'</span></div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca</span><span>'+fmt(dif)+'</span></div></div>';
+if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:800;">&#10003; Bateu no zero a zero!</div>';}
+if(falta.length){html+='<div style="color:#fff;font-weight:800;font-size:13px;margin:12px 0 6px;">&#128308; Faltando no app ('+falta.length+') &mdash; precisa adicionar</div>';falta.forEach(function(s){html+='<div class="conc-row conc-falta"><div><span class="conc-nome">'+(s.desc||'-')+'</span> '+(s.parc?'<span class="conc-sub">'+s.parc+'</span>':'')+'<div class="conc-sub">'+s.data+'</div></div><span>'+fmt(s.valor)+'</span></div>';});}
+if(sobra.length){html+='<div style="color:#fff;font-weight:800;font-size:13px;margin:12px 0 6px;">&#128993; Sobrando no app ('+sobra.length+') &mdash; possivel duplicado/errado</div>';sobra.forEach(function(a){html+='<div class="conc-row conc-sobra"><div><span class="conc-nome">'+a.nome+'</span> '+(a.parc?'<span class="conc-sub">'+a.parc+'</span>':'')+'<div class="conc-sub">'+a.data+'</div></div><span>'+fmt(a.valor)+'</span></div>';});}
+html+='<div style="color:rgba(255,255,255,0.7);font-size:12px;text-align:center;margin-top:10px;">&#10003; '+batidos.length+' lancamentos bateram certinho.</div>';
+out.innerHTML=html;
+}
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
 function renderFaturas(gastosData,fechamentoAtualStr){
 var proximoStr=localStorage.getItem('proximo_fechamento')||'';
@@ -499,7 +554,7 @@ return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class=
 return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+cat+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
 var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
+return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div>'+itensHtml+'<button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 }
