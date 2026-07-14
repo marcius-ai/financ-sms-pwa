@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -445,7 +445,7 @@ try{var cfg=await (await fetch(API+'/config')).json();if(cfg&&cfg.fechamento_atu
 if(!saved){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>';return;}
 _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);var lista=await res.json();_faturasDados=calcFaturasDados(lista,saved);var pend=contarMesesParcelasPendentes(lista,saved);renderGraficosUI(_faturasDados,pend);}catch(e){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
 }
-function calcFaturasDados(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var nm=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];var mesAtual=mesFaturaDeData(new Date(),diaFech);var byMonth={};function getM(mf){if(!byMonth[mf])byMonth[mf]={cats:{},estabs:{},estabsPessoal:{},catEstabs:{},total:0};return byMonth[mf];}(lista||[]).forEach(function(g){if(!g.data_compra)return;var cat=g.categoria||'sem_categoria',estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1),vp=pt>1?vt/pt:vt;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);var c=getM(mf);c.cats[cat]=(c.cats[cat]||0)+vp;c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;if(!c.catEstabs[cat])c.catEstabs[cat]={};var ce=c.catEstabs[cat][estabKey];var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}c.total+=vp;}});getM(mesAtual);var meses=Object.keys(byMonth).sort();var ciclos=meses.map(function(mf){var y=parseInt(mf.slice(0,4)),m=parseInt(mf.slice(5,7)),c=byMonth[mf];c.mesAno=mf;c.label=nm[m-1].charAt(0).toUpperCase()+nm[m-1].slice(1)+' '+String(y).slice(2);c.labelFull=nm[m-1].charAt(0).toUpperCase()+nm[m-1].slice(1)+' '+y;c.tipo=mf<mesAtual?'passada':(mf===mesAtual?'atual':'futura');return c;});return ciclos;}
+function calcFaturasDados(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var nm=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];var mesAtual=mesFaturaDeData(new Date(),diaFech);var byMonth={};function getM(mf){if(!byMonth[mf])byMonth[mf]={cats:{},estabs:{},estabsPessoal:{},catEstabs:{},itens:[],total:0};return byMonth[mf];}(lista||[]).forEach(function(g){if(!g.data_compra)return;var cat=g.categoria||'sem_categoria',estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1),vp=pt>1?vt/pt:vt;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);var c=getM(mf);c.cats[cat]=(c.cats[cat]||0)+vp;c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;if(!c.catEstabs[cat])c.catEstabs[cat]={};var ce=c.catEstabs[cat][estabKey];var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}c.itens.push({dataCompra:g.data_compra,valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,parcAtual:p,parcTotal:pt});c.total+=vp;}});getM(mesAtual);var meses=Object.keys(byMonth).sort();var ciclos=meses.map(function(mf){var y=parseInt(mf.slice(0,4)),m=parseInt(mf.slice(5,7)),c=byMonth[mf];c.mesAno=mf;c.label=nm[m-1].charAt(0).toUpperCase()+nm[m-1].slice(1)+' '+String(y).slice(2);c.labelFull=nm[m-1].charAt(0).toUpperCase()+nm[m-1].slice(1)+' '+y;c.tipo=mf<mesAtual?'passada':(mf===mesAtual?'atual':'futura');return c;});return ciclos;}
 function addMesesData(dateStr,n){var d=new Date(dateStr+'T12:00:00');return new Date(d.getFullYear(),d.getMonth()+n,d.getDate());}
 function mesFaturaDeData(d,diaFech){var y=d.getFullYear(),m=d.getMonth()+1,day=d.getDate();if(day>=diaFech)return y+'-'+String(m).padStart(2,'0');if(m===1)return (y-1)+'-12';return y+'-'+String(m-1).padStart(2,'0');}
 function contarMesesParcelasPendentes(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var mesAtual=mesFaturaDeData(new Date(),diaFech);var meses={};(lista||[]).forEach(function(g){var pt=parseInt(g.parcelas_total||1);if(pt<=1||!g.data_compra)return;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);if(mf>=mesAtual){meses[mf]=(meses[mf]||0)+1;}}});return Object.keys(meses).length;}
@@ -455,6 +455,7 @@ var html='<div id="graf-btns" style="display:flex;gap:6px;overflow-x:auto;flex-w
 faturas.forEach(function(f,i){html+='<button data-idx="'+i+'" style="flex-shrink:0;padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';});
 html+='</div>';
 html+='<div class="graf-toggle"><button class="graf-toggle-btn active" id="btnGrafCat" onclick="trocarModoGraf(this)">Por Categoria</button><button class="graf-toggle-btn" id="btnGrafEstab" onclick="trocarModoGraf(this)">Por Estabelecimento</button></div>';
+html+='<div style="width:100%;max-width:480px;margin-bottom:12px;"><button class="fatura-conc-btn" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.35);color:#fff;margin-top:0;" onclick="abrirConciliacaoGraf()">&#128269; Conciliar com a fatura do banco</button></div>';
 html+='<div id="drillNav" style="display:none;width:100%;max-width:480px;margin-bottom:10px;"><button onclick="voltarCategorias()" style="width:100%;padding:11px;border:none;border-radius:12px;background:rgba(255,255,255,0.18);color:#fff;font-weight:700;font-size:14px;cursor:pointer;">&#8592; Voltar &agrave;s categorias</button></div>';
 html+='<div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div><div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div><div id="graf-hint" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px;min-height:14px;"></div>';
 html+='<div id="resumoFatura" style="width:100%;max-width:480px;"></div>';document.getElementById('graficosContent').innerHTML=html;
@@ -497,6 +498,7 @@ async function editarValor(id,valorAtual){var novoStr=prompt('Novo valor (R$):',
 async function moverFatura(gastoId,cicloIdx){var c=_faturasCiclos[cicloIdx];if(!c) return;var mesAtual=c.mesAno,parts=mesAtual.split('-'),ano=parseInt(parts[0]),mes=parseInt(parts[1]),mesAnt=mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0'),mesProx=mes===12?(ano+1)+'-01':ano+'-'+String(mes+1).padStart(2,'0'),escolha=confirm('Mover para qual fatura? OK=Anterior ('+mesAnt+') Cancelar=Proxima ('+mesProx+')'),novoMes=escolha?mesAnt:mesProx;try{var r=await fetch(API+'/gastos/'+gastoId+'/fatura',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mes_ano:novoMes})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao mover: '+e.message);}}
 function toggleAddForm(formId){var el=document.getElementById(formId);if(el) el.classList.toggle('visible');}
 var _conciliarCiclo=null;
+function abrirConciliacaoGraf(){if(!_grafFatura){showToast('Selecione um mes','error');return;}_conciliarCiclo={label:_grafFatura.labelFull||_grafFatura.label,itens:_grafFatura.itens||[]};document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
 function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||null;if(!_conciliarCiclo){showToast('Fatura nao encontrada','error');return;}document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
 function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
 function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
@@ -509,12 +511,35 @@ try{
 if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra o app.');
 var texto=await _extrairTextoPDF(file);
 if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
+var extrato=_parseFaturaTextoLocal(texto);
+if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
-if(!res.ok) throw new Error('Servidor HTTP '+res.status);
-var data=await res.json();var extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});
-if(extrato.length===0) throw new Error('Nao encontrei lancamentos no PDF.');
+if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
+}
+if(extrato.length===0) throw new Error('Nao encontrei lancamentos no PDF. Me mande um print do PDF que eu ajusto o leitor.');
 _renderConciliacao(extrato);
 }catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>';}
+}
+function _parseFaturaTextoLocal(texto){
+var linhas=String(texto||'').split('\n');
+var itens=[];
+var reData=/\b(\d{2}\/\d{2})\b/;
+var reVal=/(\d{1,3}(?:\.\d{3})*,\d{2})/g;
+var ignorar=/(PAGAMENTO|PAGTO|SALDO|TOTAL|ANTERIOR|CR[EÉ]DITO|ESTORNO|LIMITE|VENCIMENTO|ENCARGOS|JUROS|MULTA|SUBTOTAL)/i;
+linhas.forEach(function(l){
+if(!l||ignorar.test(l)) return;
+var md=l.match(reData); if(!md) return;
+var vals=l.match(reVal); if(!vals||!vals.length) return;
+var valStr=vals[vals.length-1];
+var valor=parseFloat(valStr.replace(/\./g,'').replace(',','.'));
+if(!valor||valor<=0) return;
+var desc=l.replace(md[1],' ').replace(valStr,' ').replace(/\s+/g,' ').trim();
+var mp=desc.match(/\b(\d{1,2}\/\d{1,2})\b/);
+var parc=mp?mp[1]:'';
+if(parc) desc=desc.replace(mp[1],' ').replace(/\s+/g,' ').trim();
+itens.push({data:md[1],valor:valor,descricao:desc.slice(0,40),parcela:parc});
+});
+return itens;
 }
 function _renderConciliacao(extrato){
 var out=document.getElementById('concResultado');
@@ -554,7 +579,7 @@ return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class=
 return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+cat+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
 var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div>'+itensHtml+'<button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
+return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div><button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 }
