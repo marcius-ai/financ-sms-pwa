@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v37';
+const APP_VERSION = 'v38';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -541,21 +541,46 @@ itens.push({data:md[1],valor:valor,descricao:desc.slice(0,40),parcela:parc});
 });
 return itens;
 }
+var _concEstado=null;
+function _normNome(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
+function _simNome(a,b){a=_normNome(a);b=_normNome(b);if(!a||!b)return 0;if(a===b)return 1;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return 0.9;var ta=a.split(' ').filter(function(t){return t.length>=3;}),tb=b.split(' ').filter(function(t){return t.length>=3;});if(!ta.length||!tb.length)return 0;var h=0;ta.forEach(function(t){if(tb.some(function(u){return u===t||u.indexOf(t)===0||t.indexOf(u)===0;}))h++;});return h/Math.max(ta.length,tb.length);}
+function _diffDias(iso,ddmm){if(!iso||!ddmm)return 999;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
+function _fmtC(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function _calcSugestoes(){var st=_concEstado,s=[];if(!st)return[];st.app.forEach(function(a,ai){if(a.usado)return;st.ext.forEach(function(e,ei){if(e.usado)return;if(Math.abs(a.valor-e.valor)>0.02)return;var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));if(dd>60&&sim<0.3)return;s.push({ai:ai,ei:ei,dd:dd,sim:sim,score:sim*2-(dd*0.01)});});});s.sort(function(x,y){return y.score-x.score;});var ua={},ue={},out=[];s.forEach(function(p){if(ua[p.ai]||ue[p.ei])return;ua[p.ai]=1;ue[p.ei]=1;out.push(p);});return out;}
+function confirmarPar(ai,ei){var st=_concEstado;if(!st)return;st.app[ai].usado=true;st.ext[ei].usado=true;st.pares.push({ai:ai,ei:ei,auto:false});_desenharConciliacao();}
+function confirmarTodasSugestoes(){var st=_concEstado;if(!st)return;_calcSugestoes().forEach(function(p){if(st.app[p.ai].usado||st.ext[p.ei].usado)return;st.app[p.ai].usado=true;st.ext[p.ei].usado=true;st.pares.push({ai:p.ai,ei:p.ei,auto:false});});_desenharConciliacao();}
 function _renderConciliacao(extrato){
-var out=document.getElementById('concResultado');
-var appItens=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).map(function(it){return {data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):''};});
-var stmt=extrato.map(function(s){return {s:{data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||''},used:false};});
-var batidos=[],sobra=[];
-appItens.forEach(function(a){var f=stmt.find(function(x){return !x.used&&x.s.data===a.data&&Math.abs(x.s.valor-a.valor)<=0.02;});if(f){f.used=true;batidos.push(a);}else{sobra.push(a);}});
-var falta=stmt.filter(function(x){return !x.used;}).map(function(x){return x.s;});
-var totApp=appItens.reduce(function(s,i){return s+i.valor;},0),totExt=stmt.reduce(function(s,i){return s+i.s.valor;},0),dif=totExt-totApp;
-function fmt(v){return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
-var okZero=Math.abs(dif)<=0.02&&falta.length===0&&sobra.length===0;
-var html='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:12px;color:#fff;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>App</span><span>'+fmt(totApp)+'</span></div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca</span><span>'+fmt(dif)+'</span></div></div>';
+var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).map(function(it){return {dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
+var ext=extrato.map(function(s){return {data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||'',usado:false};});
+_concEstado={app:app,ext:ext,pares:[]};
+app.forEach(function(a,ai){if(a.usado)return;for(var ei=0;ei<ext.length;ei++){var e=ext[ei];if(e.usado)continue;if(a.data===e.data&&Math.abs(a.valor-e.valor)<=0.02){a.usado=true;e.usado=true;_concEstado.pares.push({ai:ai,ei:ei,auto:true});break;}}});
+_desenharConciliacao();
+}
+function _desenharConciliacao(){
+var out=document.getElementById('concResultado');var st=_concEstado;if(!st||!out)return;
+var totApp=st.app.reduce(function(s,i){return s+i.valor;},0),totExt=st.ext.reduce(function(s,i){return s+i.valor;},0),dif=totExt-totApp;
+var sug=_calcSugestoes();
+var emA={},emE={};sug.forEach(function(p){emA[p.ai]=1;emE[p.ei]=1;});
+var falta=[],sobra=[];
+st.ext.forEach(function(e,i){if(!e.usado&&!emE[i])falta.push(e);});
+st.app.forEach(function(a,i){if(!a.usado&&!emA[i])sobra.push(a);});
+function fmt(v){return _fmtC(v);}
+var okZero=Math.abs(dif)<=0.02&&falta.length===0&&sobra.length===0&&sug.length===0;
+var html='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:12px;color:#fff;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>App</span><span>'+fmt(totApp)+'</span></div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca</span><span>'+fmt(dif)+'</span></div><div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div></div>';
 if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:800;">&#10003; Bateu no zero a zero!</div>';}
+if(sug.length){
+html+='<div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;gap:8px;"><span style="color:#fff;font-weight:800;font-size:13px;">&#128260; Confirme os pares ('+sug.length+')</span><button onclick="confirmarTodasSugestoes()" style="background:#4CAF50;color:#fff;border:none;border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">Confirmar todos</button></div>';
+sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
+var motivo=(p.dd===0?'mesma data':(p.dd+' dia'+(p.dd>1?'s':'')+' de diferenca'))+(p.sim>=0.5?' &bull; nome parecido':'');
+html+='<div style="background:#fff8e1;border-radius:10px;padding:10px;margin-bottom:8px;">'
++'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5d4037;gap:8px;"><span><b>App:</b> '+a.nome+(a.parc?' <span class="conc-sub">'+a.parc+'</span>':'')+'</span><span style="white-space:nowrap;">'+a.data+'</span></div>'
++'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5d4037;margin-top:2px;gap:8px;"><span><b>Fatura:</b> '+(e.desc||'-')+(e.parc?' <span class="conc-sub">'+e.parc+'</span>':'')+'</span><span style="white-space:nowrap;">'+e.data+'</span></div>'
++'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;"><div><div style="font-weight:900;color:#333;">'+fmt(a.valor)+'</div><div style="font-size:10px;color:#8d6e00;">'+motivo+'</div></div><button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; Confirmar</button></div>'
++'</div>';});
+}
 if(falta.length){html+='<div style="color:#fff;font-weight:800;font-size:13px;margin:12px 0 6px;">&#128308; Faltando no app ('+falta.length+') &mdash; precisa adicionar</div>';falta.forEach(function(s){html+='<div class="conc-row conc-falta"><div><span class="conc-nome">'+(s.desc||'-')+'</span> '+(s.parc?'<span class="conc-sub">'+s.parc+'</span>':'')+'<div class="conc-sub">'+s.data+'</div></div><span>'+fmt(s.valor)+'</span></div>';});}
 if(sobra.length){html+='<div style="color:#fff;font-weight:800;font-size:13px;margin:12px 0 6px;">&#128993; Sobrando no app ('+sobra.length+') &mdash; possivel duplicado/errado</div>';sobra.forEach(function(a){html+='<div class="conc-row conc-sobra"><div><span class="conc-nome">'+a.nome+'</span> '+(a.parc?'<span class="conc-sub">'+a.parc+'</span>':'')+'<div class="conc-sub">'+a.data+'</div></div><span>'+fmt(a.valor)+'</span></div>';});}
-html+='<div style="color:rgba(255,255,255,0.7);font-size:12px;text-align:center;margin-top:10px;">&#10003; '+batidos.length+' lancamentos bateram certinho.</div>';
+html+='<div style="color:rgba(255,255,255,0.7);font-size:12px;text-align:center;margin-top:10px;">&#10003; '+st.pares.length+' lancamentos ja conciliados.</div>';
 out.innerHTML=html;
 }
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
