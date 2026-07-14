@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v46';
+const APP_VERSION = 'v47';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -503,6 +503,15 @@ function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||nu
 function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
 function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
 async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var byY={};content.items.forEach(function(it){var y=Math.round(it.transform[5]);(byY[y]=byY[y]||[]).push({x:it.transform[4],s:it.str});});Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){var line=byY[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
+var _concTextoBruto='';
+function _escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _htmlTextoBruto(texto,msg){
+var linhas=String(texto||'').split('\n').filter(function(l){return l.trim();});
+return '<div style="background:#c62828;color:#fff;padding:10px;border-radius:8px;margin-bottom:8px;font-size:12px;">'+(msg||'')+' Abaixo esta o texto que extrai do PDF. <b>Me manda um print disto</b> que eu acerto o leitor.</div>'
++'<div style="color:rgba(255,255,255,0.75);font-size:10px;margin-bottom:4px;">'+linhas.length+' linhas extraidas &bull; mostrando as primeiras 45</div>'
++'<pre style="background:#fff;color:#222;font-size:9px;line-height:1.45;padding:8px;border-radius:8px;max-height:360px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0;">'+_escHtml(linhas.slice(0,45).join('\n'))+'</pre>';
+}
+function verTextoExtraido(){var out=document.getElementById('concResultado');if(!out)return;if(!_concTextoBruto){showToast('Suba um PDF primeiro','error');return;}out.innerHTML=_htmlTextoBruto(_concTextoBruto,'Texto extraido do PDF:');}
 async function rodarConciliacao(){
 var fInput=document.getElementById('concFile');var file=fInput&&fInput.files?fInput.files[0]:null;if(!file){return;}
 var out=document.getElementById('concResultado');
@@ -516,16 +525,22 @@ if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
 if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
 }
-if(extrato.length===0) throw new Error('Nao encontrei lancamentos no PDF. Me mande um print do PDF que eu ajusto o leitor.');
+_concTextoBruto=texto;
+if(extrato.length===0){out.innerHTML=_htmlTextoBruto(texto,'Nao consegui identificar os lancamentos.');return;}
 _concExtratoBruto=extrato;
 await _carregarMeusCartoes();
 _aplicarFiltroCartao();
-}catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>';}
+}catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>'+(_concTextoBruto?_htmlTextoBruto(_concTextoBruto,''):'');}
 }
 var _MESES_ABR={JAN:'01',FEV:'02',MAR:'03',ABR:'04',MAI:'05',JUN:'06',JUL:'07',AGO:'08',SET:'09',OUT:'10',NOV:'11',DEZ:'12'};
 function _pad2(n){n=String(parseInt(n,10)||0);return n.length<2?('0'+n):n;}
 function _parseFaturaTextoLocal(texto){
 var linhas=String(texto||'').split('\n');
+// pre-passe: celula de data empilhada (dia numa linha, mes abreviado sozinho na linha seguinte)
+for(var _i=0;_i<linhas.length;_i++){
+var _sm=String(linhas[_i]).trim().match(/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\.?$/i);
+if(_sm&&_i>0){var _md=String(linhas[_i-1]).match(/^\s*(\d{1,2})\b/);if(_md){linhas[_i-1]=String(linhas[_i-1]).replace(/^\s*(\d{1,2})\b/,_md[1]+' '+_sm[1]+' ');linhas[_i]='';}}
+}
 var itens=[],cartaoAtual='',dataAtual='';
 var reCartaoMask=/[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+(\d{4})/i;
 var reCartaoFinal=/final\s*(?:do\s*cart[aã]o\s*)?[:\s]*(\d{4})/i;
