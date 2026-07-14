@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanmm-v55';
+const CACHE_NAME = 'finanmm-v56';
 const API_BASE = 'https://web-production-09718.up.railway.app';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))); self.skipWaiting(); });

@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v55';
+const APP_VERSION = 'v56';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -675,6 +675,7 @@ var parc='';
 var mp=resto.match(reParcParen)||resto.match(reParcSolta);
 if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);resto=resto.replace(mp[0],' ');}
 var desc=resto.replace(/[()|]/g,' ').replace(/R\$/g,' ').replace(/\s+/g,' ').trim();
+if(desc.replace(/[^A-Za-zÀ-ÿ]/g,'').length<3) return;
 g.itens.push({valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:g.cartao,nome:g.nome});
 });
 var itens=[];
@@ -715,7 +716,7 @@ showToast('Lancamento adicionado','success');
 _desenharConciliacao();
 }catch(err){showToast('Erro: '+err.message,'error');}
 }
-var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false;
+var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[];
 async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
 function _aplicarFiltroCartao(){
 var bruto=_concExtratoBruto||[];
@@ -746,6 +747,7 @@ function _salvarMarcados(m){try{localStorage.setItem('conciliados',JSON.stringif
 function _renderConciliacao(extrato){
 var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_meusCartoes||!_meusCartoes.length)return true;var c=String(it.cartao||'');return c===''||_meusCartoes.indexOf(c)>=0;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
 var ext=(extrato||[]).map(function(s){return {data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||'',cartao:String(s.cartao||''),usado:false};});
+_concMaiores=ext.slice().sort(function(a,b){return b.valor-a.valor;}).slice(0,5).map(function(x){return {valor:x.valor,descricao:x.desc};});
 _concEstado={app:app,ext:ext,pares:[]};
 _autoCasar(app,ext,_concEstado.pares);
 _desenharConciliacao();
@@ -802,6 +804,8 @@ html+='<button onclick="toggleConcOk()" style="flex:1;background:rgba(255,255,25
 html+='</div>';
 html+='<button id="btnSalvarConc" onclick="salvarConciliacao()" style="width:100%;background:'+(pendSalvar?'#3949ab':'rgba(255,255,255,0.15)')+';color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;">&#128190; Salvar conciliacao'+(pendSalvar?' ('+pendSalvar+' a alinhar)':' (tudo alinhado)')+'</button>';
 html+='<div style="color:rgba(255,255,255,0.6);font-size:10px;text-align:center;margin-top:6px;">Salvar apenas registra o que ja foi conferido. Seus lancamentos NAO sao alterados.</div>';
+html+='<button onclick="verTextoExtraido()" style="width:100%;margin-top:8px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);border:none;border-radius:8px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">&#128269; Ver texto extraido do PDF (diagnostico)</button>';
+if(_concMaiores&&_concMaiores.length){html+='<div style="color:rgba(255,255,255,0.55);font-size:10px;margin-top:8px;">Maiores itens lidos da fatura: '+_concMaiores.map(function(x){return _fmtC(x.valor)+' ('+(x.descricao||'?').slice(0,18)+')';}).join(' &bull; ')+'</div>';}
 out.innerHTML=html;
 }
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
