@@ -606,6 +606,13 @@ function _isoDoExtrato(a,e){var parcNum=1;if(e.parc){var pp=String(e.parc).split
 function _chaveConc(a){return 'conc:'+(_conciliarCiclo&&_conciliarCiclo.mesAno||'')+':'+(a.id||'');}
 function _marcadosSalvos(){try{return JSON.parse(localStorage.getItem('conciliados')||'{}');}catch(e){return {};}}
 function _salvarMarcados(m){try{localStorage.setItem('conciliados',JSON.stringify(m));}catch(e){}}
+function _renderConciliacao(extrato){
+var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_meusCartoes||!_meusCartoes.length)return true;var c=String(it.cartao||'');return c===''||_meusCartoes.indexOf(c)>=0;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
+var ext=(extrato||[]).map(function(s){return {data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||'',cartao:String(s.cartao||''),usado:false};});
+_concEstado={app:app,ext:ext,pares:[]};
+_autoCasar(app,ext,_concEstado.pares);
+_desenharConciliacao();
+}
 function confirmarPar(ai,ei){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(!a||!e||a.usado||e.usado)return;a.usado=true;e.usado=true;st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});_desenharConciliacao();}
 function confirmarTodasSugestoes(){var st=_concEstado;if(!st)return;_calcSugestoes().forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];if(!a||!e||a.usado||e.usado)return;a.usado=true;e.usado=true;st.pares.push({ai:p.ai,ei:p.ei,auto:false,dd:p.dd});});_desenharConciliacao();}
 function toggleConcOk(){_concMostrarOk=!_concMostrarOk;_desenharConciliacao();}
