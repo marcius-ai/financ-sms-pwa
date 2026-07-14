@@ -146,6 +146,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <header class="app-header">
@@ -236,7 +237,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div class="modal-title" id="concTitulo">Conciliar fatura</div>
 <div class="modal-sub">Suba o PDF da fatura do banco. Comparo por data e valor e mostro o que falta, o que sobra e a diferenca.</div>
 <label for="concFile" style="display:block;background:#3949ab;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;margin-bottom:12px;">&#128206; Escolher PDF da fatura</label>
-<input type="file" id="concFile" accept="application/pdf" onchange="rodarConciliacao()" style="display:none;" />
+<input type="file" id="concFile" accept=".pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="rodarConciliacao()" style="display:none;" />
 <div id="concResultado"></div>
 </div>
 </div>
@@ -244,7 +245,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v56';
+const APP_VERSION = 'v57';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -584,6 +585,43 @@ function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||nu
 function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
 function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
 async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var byY={};content.items.forEach(function(it){var y=Math.round(it.transform[5]);(byY[y]=byY[y]||[]).push({x:it.transform[4],s:it.str});});Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){var line=byY[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
+// Leitor de fatura em Excel (.xls/.xlsx do app do banco).
+// Estrutura validada no arquivo real do Bradesco:
+//   cabecalho de secao -> col0 = "NOME DO TITULAR - 4648"
+//   lancamento         -> col0 = "DD/MM" | col1 = Historico (parcela no FIM) | col4 = Valor R$
+async function _extrairFaturaXLS(file){
+var buf=await file.arrayBuffer();
+var wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+var linhas=[];
+wb.SheetNames.forEach(function(nome){
+var rows=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,raw:false,defval:''});
+rows.forEach(function(r){linhas.push(r);});
+});
+var reSec=/^(.+?)\s*-\s*(\d{4})\s*$/;
+var reData=/^(\d{1,2})\/(\d{1,2})$/;
+var reParc=/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
+var itens=[],cartao='',nome='',bruto=[];
+linhas.forEach(function(r){
+var c0=String(r[0]==null?'':r[0]).replace(/\s+/g,' ').trim();
+var c1=String(r[1]==null?'':r[1]).replace(/\s+/g,' ').trim();
+var c4=String(r[4]==null?'':r[4]).trim()||String(r[3]==null?'':r[3]).trim();
+bruto.push([c0,c1,c4].filter(function(x){return x;}).join(' | '));
+if(!c0) return;
+var md=c0.match(reData);
+if(!md){
+var ms=c0.match(reSec);
+if(ms){nome=ms[1].trim();cartao=ms[2];}
+return;
+}
+var v=parseFloat(String(c4).replace(/\./g,'').replace(',','.'));
+if(!v||v<=0) return;
+var desc=c1,parc='';
+var mp=desc.match(reParc);
+if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);desc=desc.slice(0,mp.index).trim();}
+itens.push({data:_pad2(md[1])+'/'+_pad2(md[2]),valor:v,descricao:desc.slice(0,40),parcela:parc,cartao:cartao,nome:nome});
+});
+return {itens:itens,texto:bruto.filter(function(l){return l;}).join('\n')};
+}
 var _concTextoBruto='';
 function _escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function _htmlTextoBruto(texto,msg){
@@ -596,15 +634,23 @@ function verTextoExtraido(){var out=document.getElementById('concResultado');if(
 async function rodarConciliacao(){
 var fInput=document.getElementById('concFile');var file=fInput&&fInput.files?fInput.files[0]:null;if(!file){return;}
 var out=document.getElementById('concResultado');
-out.innerHTML='<div style="text-align:center;color:#fff;padding:16px;">Lendo o PDF e conciliando...</div>';
+var ehExcel=/\.xlsx?$/i.test(file.name||'');
+out.innerHTML='<div style="text-align:center;color:#fff;padding:16px;">Lendo '+(ehExcel?'o Excel':'o PDF')+' e conciliando...</div>';
 try{
+var texto='',extrato=[];
+if(ehExcel){
+if(!window.XLSX) throw new Error('Leitor de Excel nao carregou. Feche e reabra o app.');
+var xl=await _extrairFaturaXLS(file);
+texto=xl.texto;extrato=xl.itens;
+}else{
 if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra o app.');
-var texto=await _extrairTextoPDF(file);
+texto=await _extrairTextoPDF(file);
 if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
-var extrato=_parseFaturaTextoLocal(texto);
+extrato=_parseFaturaTextoLocal(texto);
 if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
 if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
+}
 }
 _concTextoBruto=texto;
 if(extrato.length===0){out.innerHTML=_htmlTextoBruto(texto,'Nao consegui identificar os lancamentos.');return;}
