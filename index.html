@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v41';
+const APP_VERSION = 'v42';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -518,11 +518,7 @@ if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it
 }
 if(extrato.length===0) throw new Error('Nao encontrei lancamentos no PDF. Me mande um print do PDF que eu ajusto o leitor.');
 _concExtratoBruto=extrato;
-_concCartoes=[];extrato.forEach(function(it){var c=String(it.cartao||'');if(c&&_concCartoes.indexOf(c)<0)_concCartoes.push(c);});
-var appCards={};((_conciliarCiclo&&_conciliarCiclo.itens)||[]).forEach(function(it){if(it.cartao)appCards[String(it.cartao)]=1;});
-_concCartaoSel=null;
-for(var ci=0;ci<_concCartoes.length;ci++){if(appCards[_concCartoes[ci]]){_concCartaoSel=_concCartoes[ci];break;}}
-if(!_concCartaoSel)_concCartaoSel=_concCartoes.length?_concCartoes[0]:'TODOS';
+await _carregarMeusCartoes();
 _aplicarFiltroCartao();
 }catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>';}
 }
@@ -573,7 +569,7 @@ var iso=_inferirDataISO(e.data,parcNum,mesAno);
 var total=(parcTot>1)?Number((e.valor*parcTot).toFixed(2)):e.valor;
 var nome=capitalizarPrimeira(e.desc||'Lancamento da fatura');
 try{
-var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:_concCartaoSel||''})});
+var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
 if(!r.ok)throw new Error('HTTP '+r.status);
 st.app.push({id:null,dataISO:iso,data:e.data,valor:e.valor,parcTot:parcTot,nome:nome,orig:e.desc||'',parc:(parcTot>1?(parcNum+'/'+parcTot):''),usado:true});
 e.usado=true;
@@ -582,9 +578,18 @@ showToast('Lancamento adicionado','success');
 _desenharConciliacao();
 }catch(err){showToast('Erro: '+err.message,'error');}
 }
-var _concEstado=null,_concExtratoBruto=null,_concCartoes=[],_concCartaoSel=null;
-function _aplicarFiltroCartao(){var ext=(_concExtratoBruto||[]).filter(function(it){return !_concCartaoSel||_concCartaoSel==='TODOS'||String(it.cartao||'')===_concCartaoSel;});_renderConciliacao(ext);}
-function selecionarCartaoConc(c){_concCartaoSel=c;_aplicarFiltroCartao();}
+var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[];
+async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
+function _aplicarFiltroCartao(){
+var bruto=_concExtratoBruto||[];
+var algumCartao=bruto.some(function(it){return String(it.cartao||'')!=='';});
+var ext=bruto,ign=0,usados=[];
+if(algumCartao&&_meusCartoes&&_meusCartoes.length){
+ext=bruto.filter(function(it){var c=String(it.cartao||'');var meu=(_meusCartoes.indexOf(c)>=0);if(!meu)ign++;else if(usados.indexOf(c)<0)usados.push(c);return meu;});
+}
+_concIgnorados=ign;_concCartoesUsados=usados;
+_renderConciliacao(ext);
+}
 function _normNome(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 function _simNome(a,b){a=_normNome(a);b=_normNome(b);if(!a||!b)return 0;if(a===b)return 1;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return 0.9;var ta=a.split(' ').filter(function(t){return t.length>=3;}),tb=b.split(' ').filter(function(t){return t.length>=3;});if(!ta.length||!tb.length)return 0;var h=0;ta.forEach(function(t){if(tb.some(function(u){return u===t||u.indexOf(t)===0||t.indexOf(u)===0;}))h++;});return h/Math.max(ta.length,tb.length);}
 function _diffDias(iso,ddmm){if(!iso||!ddmm)return 999;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
@@ -615,7 +620,7 @@ function _calcAjustes(){var st=_concEstado,out=[];if(!st)return out;st.pares.for
 async function corrigirCentavos(ai,ei){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(!a.id){showToast('Lancamento sem id','error');return;}var novoTotal=(a.parcTot>1)?(e.valor*a.parcTot):e.valor;try{var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:Number(novoTotal.toFixed(2))})});if(!r.ok)throw new Error('HTTP '+r.status);a.valor=e.valor;showToast('Valor corrigido','success');_desenharConciliacao();}catch(err){showToast('Erro: '+err.message,'error');}}
 async function corrigirTodosCentavos(){var aj=_calcAjustes();for(var i=0;i<aj.length;i++){await corrigirCentavos(aj[i].ai,aj[i].ei);}}
 function _renderConciliacao(extrato){
-var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_concCartaoSel||_concCartaoSel==='TODOS')return true;var c=String(it.cartao||'');return c===''||c===_concCartaoSel;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
+var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_meusCartoes||!_meusCartoes.length)return true;var c=String(it.cartao||'');return c===''||_meusCartoes.indexOf(c)>=0;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
 var ext=extrato.map(function(s){return {data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||'',usado:false};});
 _concEstado={app:app,ext:ext,pares:[]};
 app.forEach(function(a,ai){if(a.usado)return;for(var ei=0;ei<ext.length;ei++){var e=ext[ei];if(e.usado)continue;if(a.data===e.data&&Math.abs(a.valor-e.valor)<=0.02){a.usado=true;e.usado=true;_concEstado.pares.push({ai:ai,ei:ei,auto:true});break;}}});
@@ -633,10 +638,8 @@ st.app.forEach(function(a,i){if(!a.usado&&!emA[i])sobra.push({a:a,i:i});});
 function fmt(v){return _fmtC(v);}
 var okZero=Math.abs(dif)<=0.005&&falta.length===0&&sobra.length===0&&sug.length===0&&aj.length===0;
 var html='';
-if(_concCartoes&&_concCartoes.length){
-html+='<div style="margin-bottom:10px;"><div style="color:rgba(255,255,255,0.65);font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:6px;">CARTAO DA FATURA</div><div style="display:flex;gap:6px;flex-wrap:wrap;">';
-_concCartoes.forEach(function(c){html+='<button onclick="selecionarCartaoConc(\''+c+'\')" style="padding:6px 12px;border-radius:16px;border:none;background:'+(_concCartaoSel===c?'#3949ab':'rgba(255,255,255,0.15)')+';color:#fff;font-weight:700;font-size:12px;cursor:pointer;">****'+c+'</button>';});
-html+='<button onclick="selecionarCartaoConc(\'TODOS\')" style="padding:6px 12px;border-radius:16px;border:none;background:'+(_concCartaoSel==='TODOS'?'#3949ab':'rgba(255,255,255,0.15)')+';color:#fff;font-weight:700;font-size:12px;cursor:pointer;">Todos</button></div></div>';
+if(_concCartoesUsados&&_concCartoesUsados.length){
+html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;margin-bottom:10px;color:rgba(255,255,255,0.8);font-size:11px;text-align:center;">Seus cart&otilde;es: <b>'+_concCartoesUsados.map(function(c){return '****'+c;}).join(' ')+'</b>'+(_concIgnorados>0?' &bull; '+_concIgnorados+' lan&ccedil;amento'+(_concIgnorados>1?'s':'')+' de outros cart&otilde;es ignorado'+(_concIgnorados>1?'s':''):'')+'</div>';
 }
 html+='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:12px;color:#fff;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>App</span><span>'+fmt(totApp)+'</span></div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca</span><span>'+fmt(dif)+'</span></div><div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+aj.length+' centavos &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div></div>';
 if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:14px;border-radius:10px;font-weight:800;">&#10003; Bateu no zero a zero!</div>';}
