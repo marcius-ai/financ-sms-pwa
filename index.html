@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v44';
+const APP_VERSION = 'v45';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -522,30 +522,43 @@ await _carregarMeusCartoes();
 _aplicarFiltroCartao();
 }catch(e){out.innerHTML='<div style="background:#c62828;color:#fff;padding:12px;border-radius:8px;">Erro: '+e.message+'</div>';}
 }
+var _MESES_ABR={JAN:'01',FEV:'02',MAR:'03',ABR:'04',MAI:'05',JUN:'06',JUL:'07',AGO:'08',SET:'09',OUT:'10',NOV:'11',DEZ:'12'};
+function _pad2(n){n=String(parseInt(n,10)||0);return n.length<2?('0'+n):n;}
 function _parseFaturaTextoLocal(texto){
 var linhas=String(texto||'').split('\n');
-var itens=[];
-var cartaoAtual='';
+var itens=[],cartaoAtual='',dataAtual='';
 var reCartaoMask=/[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+(\d{4})/i;
 var reCartaoFinal=/final\s*(?:do\s*cart[aã]o\s*)?[:\s]*(\d{4})/i;
-var reData=/\b(\d{2}\/\d{2})\b/;
+var reDataAbr=/(?:^|\s)(\d{1,2})\s*[\/\s-]?\s*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b/i;
+var reDataIni=/^\s*(\d{1,2})\/(\d{2})(?:\/(\d{2,4}))?\b/;
+var reParcParen=/\(\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)/;
+var reParcSolta=/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/;
 var reVal=/(\d{1,3}(?:\.\d{3})*,\d{2})/g;
-var ignorar=/(PAGAMENTO|PAGTO|SALDO|TOTAL|ANTERIOR|CR[EÉ]DITO|ESTORNO|LIMITE|VENCIMENTO|ENCARGOS|JUROS|MULTA|SUBTOTAL)/i;
+var ignorar=/(PAGAMENTO|PAGTO|SALDO|TOTAL|ANTERIOR|CR[EÉ]DITO|ESTORNO|LIMITE|VENCIMENTO|ENCARGOS|JUROS|MULTA|SUBTOTAL|FATURA)/i;
 linhas.forEach(function(l){
 if(!l) return;
 var mcard=l.match(reCartaoMask)||l.match(reCartaoFinal);
 if(mcard){cartaoAtual=mcard[1]||'';return;}
+var resto=' '+l+' ';
+// 1) DATA: "31 MAI" (dia + mes abreviado) OU "16/05" no inicio da linha
+var md=resto.match(reDataAbr);
+if(md){dataAtual=_pad2(md[1])+'/'+_MESES_ABR[md[2].toUpperCase()];resto=resto.replace(md[0],' ');}
+else{var md2=l.match(reDataIni);if(md2){dataAtual=_pad2(md2[1])+'/'+_pad2(md2[2]);resto=resto.replace(md2[0],' ');}}
 if(ignorar.test(l)) return;
-var md=l.match(reData); if(!md) return;
-var vals=l.match(reVal); if(!vals||!vals.length) return;
+// 2) VALOR: ultimo monetario da linha
+var vals=resto.match(reVal);
+if(!vals||!vals.length) return;
 var valStr=vals[vals.length-1];
 var valor=parseFloat(valStr.replace(/\./g,'').replace(',','.'));
 if(!valor||valor<=0) return;
-var desc=l.replace(md[1],' ').replace(valStr,' ').replace(/\s+/g,' ').trim();
-var mp=desc.match(/\b(\d{1,2}\/\d{1,2})\b/);
-var parc=mp?mp[1]:'';
-if(parc) desc=desc.replace(mp[1],' ').replace(/\s+/g,' ').trim();
-itens.push({data:md[1],valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:cartaoAtual});
+if(!dataAtual) return;
+resto=resto.replace(valStr,' ');
+// 3) PARCELA: prioriza parenteses "( 02/03 )", senao NN/NN solto (a data ja foi removida)
+var parc='';
+var mp=resto.match(reParcParen)||resto.match(reParcSolta);
+if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);resto=resto.replace(mp[0],' ');}
+var desc=resto.replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
+itens.push({data:dataAtual,valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:cartaoAtual});
 });
 return itens;
 }
