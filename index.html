@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v53';
+const APP_VERSION = 'v54';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -445,7 +445,38 @@ try{var cfg=await (await fetch(API+'/config')).json();if(cfg&&cfg.fechamento_atu
 if(!saved){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>';return;}
 _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);var lista=await res.json();_faturasDados=calcFaturasDados(lista,saved);var pend=contarMesesParcelasPendentes(lista,saved);renderGraficosUI(_faturasDados,pend);}catch(e){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
 }
-function calcFaturasDados(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var nm=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];var mesAtual=mesFaturaDeData(new Date(),diaFech);var byMonth={};function getM(mf){if(!byMonth[mf])byMonth[mf]={cats:{},estabs:{},estabsPessoal:{},catEstabs:{},itens:[],total:0};return byMonth[mf];}(lista||[]).forEach(function(g){if(!g.data_compra)return;var cat=g.categoria||'sem_categoria',estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1),vp=pt>1?vt/pt:vt;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);var c=getM(mf);c.cats[cat]=(c.cats[cat]||0)+vp;c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;if(!c.catEstabs[cat])c.catEstabs[cat]={};var ce=c.catEstabs[cat][estabKey];var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}c.itens.push({id:g.id,dataCompra:g.data_compra,valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,parcAtual:p,parcTotal:pt,cartao:g.cartao_final||''});c.total+=vp;}});getM(mesAtual);var meses=Object.keys(byMonth).sort();var ciclos=meses.map(function(mf){var y=parseInt(mf.slice(0,4)),m=parseInt(mf.slice(5,7)),c=byMonth[mf];c.mesAno=mf;var _fd=new Date(y,m,1),_lm=_fd.getMonth(),_ly=_fd.getFullYear();c.label=nm[_lm].charAt(0).toUpperCase()+nm[_lm].slice(1)+' '+String(_ly).slice(2);c.labelFull=nm[_lm].charAt(0).toUpperCase()+nm[_lm].slice(1)+' '+_ly;c.tipo=mf<mesAtual?'passada':(mf===mesAtual?'atual':'futura');return c;});return ciclos;}
+function calcFaturasDados(lista,fechStr){
+var proximoStr=localStorage.getItem('proximo_fechamento')||'';
+var faixa=_faixaDatas(lista);
+var ciclos=gerarCiclos(fechStr,proximoStr,faixa.min,faixa.max);
+if(!ciclos.length) return [];
+ciclos.forEach(function(c){c.cats={};c.estabs={};c.estabsPessoal={};c.catEstabs={};c.itens=[];c.total=0;});
+(lista||[]).forEach(function(g){
+if(!g.data_compra)return;
+var cat=g.categoria||'sem_categoria',
+estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),
+vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1,vp=pt>1?vt/pt:vt;
+for(var p=1;p<=pt;p++){
+var pd=_isoD(addMesesData(g.data_compra,p-1));
+for(var i=0;i<ciclos.length;i++){
+var c=ciclos[i];
+if(pd>=c.inicio&&pd<=c.fechamento){
+c.cats[cat]=(c.cats[cat]||0)+vp;
+c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;
+if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;
+if(!c.catEstabs[cat])c.catEstabs[cat]={};
+var ce=c.catEstabs[cat][estabKey];
+var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;
+if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}
+c.itens.push({id:g.id,dataCompra:g.data_compra,valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,parcAtual:p,parcTotal:pt,cartao:g.cartao_final||''});
+c.total+=vp;
+break;
+}
+}
+}
+});
+return ciclos;
+}
 function addMesesData(dateStr,n){var d=new Date(dateStr+'T12:00:00');return new Date(d.getFullYear(),d.getMonth()+n,d.getDate());}
 function mesFaturaDeData(d,diaFech){var y=d.getFullYear(),m=d.getMonth()+1,day=d.getDate();if(day>=diaFech)return y+'-'+String(m).padStart(2,'0');if(m===1)return (y-1)+'-12';return y+'-'+String(m-1).padStart(2,'0');}
 function contarMesesParcelasPendentes(lista,fechStr){var diaFech=parseInt((fechStr||'').split('-')[2])||1;var mesAtual=mesFaturaDeData(new Date(),diaFech);var meses={};(lista||[]).forEach(function(g){var pt=parseInt(g.parcelas_total||1);if(pt<=1||!g.data_compra)return;for(var p=1;p<=pt;p++){var mf=mesFaturaDeData(addMesesData(g.data_compra,p-1),diaFech);if(mf>=mesAtual){meses[mf]=(meses[mf]||0)+1;}}});return Object.keys(meses).length;}
@@ -490,6 +521,55 @@ async function abrirFaturas(){mostrarTela('screenFaturas');var saved=localStorag
 function fecharFaturas(){mostrarTela(gastos.length>0?'screenGasto':'screenVazio');}
 function salvarFechamento(){var val=document.getElementById('inputFechamento').value;if(!val) return;localStorage.setItem('fechamento_atual',val);atualizarVencimento(val);var parts=val.split('-'),dia=parseInt(parts[2]),mesAno=parts[0]+'-'+parts[1];fetch(API+'/faturas/configurar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dia_fechamento:dia,mes_ano:mesAno})}).catch(function(e){console.log('fatura config err:',e);});fetch(API+'/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fechamento_atual:val})}).catch(function(e){console.log('config save err:',e);});carregarFaturas(val);}
 function salvarProximoFechamento(){var val=document.getElementById('inputProximoFechamento').value;if(!val) return;localStorage.setItem('proximo_fechamento',val);fetch(API+'/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proximo_fechamento:val})}).catch(function(e){console.log('config prox err:',e);});var fa=localStorage.getItem('fechamento_atual')||document.getElementById('inputFechamento').value;if(fa){atualizarVencimento(fa);carregarFaturas(fa);}}
+function _isoD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _mkD(s){return new Date(String(s)+'T12:00:00');}
+// MOTOR UNICO DE CICLOS - ancorado SOMENTE nas datas que o usuario informa
+// (fechamento atual + proximo fechamento). Meses fora desse intervalo sao
+// extrapolados a partir da ancora mais proxima.
+function gerarCiclos(fechAtualStr,proximoStr,minISO,maxISO){
+if(!fechAtualStr) return [];
+var fAt=_mkD(fechAtualStr);
+var prox=proximoStr?_mkD(proximoStr):new Date(fAt.getFullYear(),fAt.getMonth()+1,fAt.getDate());
+var min=_mkD(minISO||fechAtualStr); min=new Date(min.getFullYear(),min.getMonth()-2,1);
+var max=_mkD(maxISO||proximoStr||fechAtualStr); max=new Date(max.getFullYear(),max.getMonth()+2,28);
+var fechs=[],seen={};
+function push(d){var k=_isoD(d);if(!seen[k]){seen[k]=1;fechs.push(d);}}
+push(fAt);push(prox);
+var d=new Date(fAt.getFullYear(),fAt.getMonth()-1,fAt.getDate());
+while(d>=min){push(new Date(d.getTime()));d=new Date(d.getFullYear(),d.getMonth()-1,fAt.getDate());}
+d=new Date(prox.getFullYear(),prox.getMonth()+1,prox.getDate());
+while(d<=max){push(new Date(d.getTime()));d=new Date(d.getFullYear(),d.getMonth()+1,prox.getDate());}
+fechs.sort(function(a,b){return a-b;});
+var nm=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+var hoje=_isoD(new Date());
+var ciclos=[];
+for(var i=1;i<fechs.length;i++){
+var fe=fechs[i],fa=fechs[i-1];
+var ini=new Date(fa.getFullYear(),fa.getMonth(),fa.getDate()+1);
+var m=fe.getMonth(),y=fe.getFullYear();
+var iniISO=_isoD(ini),fecISO=_isoD(fe);
+ciclos.push({inicio:iniISO,fechamento:fecISO,
+mesAno:y+'-'+String(m+1).padStart(2,'0'),
+label:nm[m].charAt(0).toUpperCase()+nm[m].slice(1)+' '+String(y).slice(2),
+labelFull:nm[m].charAt(0).toUpperCase()+nm[m].slice(1)+' '+y,
+labelLongo:fe.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),
+vencimento:_isoD(new Date(y,m,25)),
+tipo:(hoje>=iniISO&&hoje<=fecISO)?'atual':(fecISO<hoje?'passada':'futura')});
+}
+return ciclos;
+}
+function _faixaDatas(lista){
+var min=null,max=null;
+(lista||[]).forEach(function(g){
+if(!g.data_compra)return;
+var pt=parseInt(g.parcelas_total||1)||1;
+var d0=g.data_compra;
+if(!min||d0<min)min=d0;
+var ult=_isoD(addMesesData(d0,pt-1));
+if(!max||ult>max)max=ult;
+});
+return {min:min,max:max};
+}
 function getCicloFechamentos(fechAtualStr,proximoStr){var fAt=new Date(fechAtualStr+'T12:00:00');var prox=proximoStr?new Date(proximoStr+'T12:00:00'):new Date(fAt.getFullYear(),fAt.getMonth()+1,fAt.getDate());return [new Date(fAt.getFullYear(),fAt.getMonth()-1,fAt.getDate()),fAt,prox,new Date(prox.getFullYear(),prox.getMonth()+1,prox.getDate())];}
 function atualizarVencimento(fechamento){var proximoStr=localStorage.getItem('proximo_fechamento')||'';var d=new Date(fechamento+'T12:00:00');var prx=proximoStr?new Date(proximoStr+'T12:00:00'):new Date(d.getFullYear(),d.getMonth()+1,d.getDate());var mesVenc=new Date(prx.getFullYear(),prx.getMonth(),25);document.getElementById('faturaVencimento').textContent='Fatura atual fecha: '+prx.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})+' • vence: '+mesVenc.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});var elPF=document.getElementById('proximoFechamento');if(elPF){elPF.textContent=proximoStr?('Proximo fechamento: '+prx.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})):'';}var elPCF=document.getElementById('proximoCicloFaturas');if(elPCF){if(proximoStr){elPCF.innerHTML='<span style="color:#555;font-weight:600;">Fatura atual:</span> fecha em '+prx.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})+' &bull; vence em 25 de '+prx.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});}else{elPCF.innerHTML='<span style="color:#c62828;font-weight:600;">Informe a data do proximo fechamento no card abaixo.</span>';}}}
 async function carregarFaturas(fechamentoAtual){document.getElementById('faturaList').innerHTML='<div class="hist-loading">Carregando...</div>';try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);renderFaturas(await res.json(),fechamentoAtual);}catch(e){document.getElementById('faturaList').innerHTML='<div class="hist-loading">Erro ao carregar gastos.</div>';}}
@@ -727,8 +807,9 @@ out.innerHTML=html;
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
 function renderFaturas(gastosData,fechamentoAtualStr){
 var proximoStr=localStorage.getItem('proximo_fechamento')||'';
-var fechs=getCicloFechamentos(fechamentoAtualStr,proximoStr),ciclos=[];
-for(var k=0;k<fechs.length;k++){var fechD=fechs[k],prevFech=(k>0)?fechs[k-1]:new Date(fechD.getFullYear(),fechD.getMonth()-1,fechD.getDate()),inicioBase=new Date(prevFech.getFullYear(),prevFech.getMonth(),prevFech.getDate()+1),vencD=new Date(fechD.getFullYear(),fechD.getMonth(),25);ciclos.push({inicio:inicioBase.toISOString().slice(0,10),fechamento:fechD.toISOString().slice(0,10),vencimento:vencD.toISOString().slice(0,10),label:fechD.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),mesAno:fechD.getFullYear()+'-'+String(fechD.getMonth()+1).padStart(2,'0'),tipo:k<2?'passada':(k===2?'atual':'futura'),itens:[]});}
+var faixa=_faixaDatas(gastosData);
+var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
+ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
 gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0),valorParcela=parcTotal>1?valorTotal/parcTotal:valorTotal;for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),parcDateStr=parcDate.toISOString().slice(0,10),cicloIdx=calcFaturaId(parcDateStr,ciclos);if(cicloIdx===-1) return;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,cartao:g.cartao_final||''});}});
 var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
