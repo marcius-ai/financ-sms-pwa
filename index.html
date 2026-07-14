@@ -246,7 +246,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v58';
+const APP_VERSION = 'v59';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -601,7 +601,14 @@ rows.forEach(function(r){linhas.push(r);});
 var reSec=/^(.+?)\s*-\s*(\d{4})\s*$/;
 var reData=/^(\d{1,2})\/(\d{1,2})$/;
 var reParc=/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
-var itens=[],cartao='',nome='',bruto=[];
+// Linhas que tem cara de lancamento (data + valor) mas NAO sao compra:
+// saldo anterior, pagamentos e encargos. O saldo anterior e o vilao:
+// vem como "25/06 | SALDO ANTERIOR | 21503,08", identico a uma compra.
+var reNaoCompra=/^(SALDO ANTERIOR|PAG(TO|AMENTO)?\b|PAG BOLETO|CREDITO|ESTORNO|ENCARGOS|JUROS|MULTA|IOF\b|ANUIDADE|MULTA)/i;
+var reTotalSec=/^Total para\b/i;
+var reTotalFat=/^Total da fatura em Real/i;
+var num=function(s){var v=parseFloat(String(s).replace(/\./g,'').replace(',','.'));return isNaN(v)?null:v;};
+var itens=[],cartao='',nome='',bruto=[],totaisBanco={},totalFatura=null,pagos={};
 linhas.forEach(function(r){
 var c0=String(r[0]==null?'':r[0]).replace(/\s+/g,' ').trim();
 var c1=String(r[1]==null?'':r[1]).replace(/\s+/g,' ').trim();
@@ -610,18 +617,39 @@ bruto.push([c0,c1,c4].filter(function(x){return x;}).join(' | '));
 if(!c0) return;
 var md=c0.match(reData);
 if(!md){
+if(reTotalFat.test(c0)){totalFatura=num(c4);return;}
+if(reTotalSec.test(c0)){if(cartao)totaisBanco[cartao]=num(c4);return;}
 var ms=c0.match(reSec);
 if(ms){nome=ms[1].trim();cartao=ms[2];}
 return;
 }
-var v=parseFloat(String(c4).replace(/\./g,'').replace(',','.'));
-if(!v||v<=0) return;
+var v=num(c4);
+if(v==null||v===0) return;
+if(reNaoCompra.test(c1)){ // pagamento/credito conta pra conferencia, nao pro extrato
+if(v<0&&cartao)pagos[cartao]=(pagos[cartao]||0)+v;
+return;
+}
+if(v<0) return;
 var desc=c1,parc='';
 var mp=desc.match(reParc);
 if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);desc=desc.slice(0,mp.index).trim();}
 itens.push({data:_pad2(md[1])+'/'+_pad2(md[2]),valor:v,descricao:desc.slice(0,40),parcela:parc,cartao:cartao,nome:nome});
 });
-return {itens:itens,texto:bruto.filter(function(l){return l;}).join('\n')};
+// Confere o que li contra os totais que o proprio banco declara.
+var conf=[];
+Object.keys(totaisBanco).forEach(function(c){
+var lst=itens.filter(function(x){return x.cartao===c;});
+if(!lst.length) return; // secao sem lancamento: nada a conferir
+var lido=lst.reduce(function(a,x){return a+x.valor;},0);
+var esperado=totaisBanco[c]-(pagos[c]||0);
+if(Math.abs(lido-esperado)>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+esperado.toFixed(2));
+});
+// Checagem principal: a soma de tudo tem que dar o total que o banco declara.
+if(totalFatura!=null){
+var soma=itens.reduce(function(a,x){return a+x.valor;},0);
+if(Math.abs(soma-totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+', banco diz '+totalFatura.toFixed(2));
+}
+return {itens:itens,texto:bruto.filter(function(l){return l;}).join('\n'),totalFatura:totalFatura,conferencia:conf};
 }
 var _concTextoBruto='';
 function _escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -643,7 +671,11 @@ if(ehExcel){
 if(!window.XLSX) throw new Error('Leitor de Excel nao carregou. Feche e reabra o app.');
 var xl=await _extrairFaturaXLS(file);
 texto=xl.texto;extrato=xl.itens;
+_concConferencia=(xl.conferencia&&xl.conferencia.length)
+?{ok:false,msg:'Leitura NAO confere com o banco: '+xl.conferencia.join('; ')}
+:(xl.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco (R$ '+formatarValor(xl.totalFatura)+')'}:null);
 }else{
+_concConferencia=null;
 if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra o app.');
 texto=await _extrairTextoPDF(file);
 if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
@@ -763,7 +795,7 @@ showToast('Lancamento adicionado','success');
 _desenharConciliacao();
 }catch(err){showToast('Erro: '+err.message,'error');}
 }
-var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[];
+var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null;
 async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
 function _aplicarFiltroCartao(){
 var bruto=_concExtratoBruto||[];
@@ -824,6 +856,9 @@ function fmt(v){return _fmtC(v);}
 function cApp(a){return '<b>'+a.nome+'</b>'+(a.parc?' <span style="opacity:.65">'+a.parc+'</span>':'')+'<br><span style="opacity:.65">'+a.data+' &bull; '+fmt(a.valor)+'</span>';}
 function cExt(e){return '<b>'+(e.desc||'-')+'</b>'+(e.parc?' <span style="opacity:.65">'+e.parc+'</span>':'')+'<br><span style="opacity:.65">'+e.data+' &bull; '+fmt(e.valor)+'</span>';}
 var html='';
+if(_concConferencia){
+html+='<div style="background:'+(_concConferencia.ok?'#1b5e20':'#b71c1c')+';border-radius:10px;padding:8px 10px;margin-bottom:10px;color:#fff;font-size:11px;text-align:center;">'+(_concConferencia.ok?'&#10003; ':'&#9888; ')+_escHtml(_concConferencia.msg)+'</div>';
+}
 if(_concCartoesUsados&&_concCartoesUsados.length){
 html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;margin-bottom:10px;color:rgba(255,255,255,0.8);font-size:11px;text-align:center;">Seus cart&otilde;es: <b>'+_concCartoesUsados.map(function(c){return '****'+c;}).join(' ')+'</b>'+(_concIgnorados>0?' &bull; '+_concIgnorados+' de outros cart&otilde;es ignorado'+(_concIgnorados>1?'s':''):'')+'</div>';
 }
