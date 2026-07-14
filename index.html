@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v52';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -536,45 +536,61 @@ _aplicarFiltroCartao();
 var _MESES_ABR={JAN:'01',FEV:'02',MAR:'03',ABR:'04',MAI:'05',JUN:'06',JUL:'07',AGO:'08',SET:'09',OUT:'10',NOV:'11',DEZ:'12'};
 function _pad2(n){n=String(parseInt(n,10)||0);return n.length<2?('0'+n):n;}
 function _parseFaturaTextoLocal(texto){
-var linhas=String(texto||'').split('\n');
-// pre-passe: celula de data empilhada (dia numa linha, mes abreviado sozinho na linha seguinte)
-for(var _i=0;_i<linhas.length;_i++){
-var _sm=String(linhas[_i]).trim().match(/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\.?$/i);
-if(_sm&&_i>0){var _md=String(linhas[_i-1]).match(/^\s*(\d{1,2})\b/);if(_md){linhas[_i-1]=String(linhas[_i-1]).replace(/^\s*(\d{1,2})\b/,_md[1]+' '+_sm[1]+' ');linhas[_i]='';}}
-}
-var itens=[],cartaoAtual='',dataAtual='';
-var reCartaoMask=/[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+[X\*\d]{4}[\.\s\-]+(\d{4})/i;
-var reCartaoFinal=/final\s*(?:do\s*cart[aã]o\s*)?[:\s]*(\d{4})/i;
-var reDataAbr=/(?:^|\s)(\d{1,2})\s*[\/\s-]?\s*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b/i;
-var reDataIni=/^\s*(\d{1,2})\/(\d{2})(?:\/(\d{2,4}))?\b/;
+var linhas=String(texto||'').split('\n').map(function(s){return String(s||'').replace(/\s+/g,' ').trim();});
+var reCartSec=/cart[aã]o\s*:?\s*final\s*(\d{4})\s*\|\s*([^|]*?)(?:\s+Valor|$)/i;
+var reCartFinal=/\bfinal\s*[:\s]*(\d{4})\b/i;
+var reCartMask=/[X\*]{2,}[\s\.\*X]*(\d{4})\b/;
+var reDiaSo=/^(\d{1,2})$/;
+var reMesSo=/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\.?$/i;
+var reDiaMesInline=/^(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b/i;
+var reDataBarra=/^(\d{1,2})\/(\d{2})(?:\/\d{2,4})?\b/;
+var reVal=/(\d{1,3}(?:\.\d{3})*,\d{2})/g;
 var reParcParen=/\(\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)/;
 var reParcSolta=/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/;
-var reVal=/(\d{1,3}(?:\.\d{3})*,\d{2})/g;
-var ignorar=/(PAGAMENTO|PAGTO|SALDO|TOTAL|ANTERIOR|CR[EÉ]DITO|ESTORNO|LIMITE|VENCIMENTO|ENCARGOS|JUROS|MULTA|SUBTOTAL|FATURA)/i;
+var ignorar=/(TOTAL DA FATURA|FATURA ANTERIOR|DATA DE VENCIMENTO|VALIDADE|MELHOR DATA|FORMA DE PAGAMENTO|COTA[CÇ][AÃ]O|MOEDA DE ORIGEM|N[AÃ]O POSSUI LAN|PAGAMENTO EFETUADO|PAGTO|SALDO|ENCARGOS|JUROS|MULTA|SUBTOTAL|LIMITE|CARTAO SELECIONADO|FATURA DATA|^DATA LAN)/i;
+var grupos=[],g=null,cartaoAtual='',nomeAtual='';
+function novoGrupo(dia,mes){g={dia:dia,mes:mes||null,cartao:cartaoAtual,nome:nomeAtual,itens:[]};grupos.push(g);return g;}
 linhas.forEach(function(l){
 if(!l) return;
-var mcard=l.match(reCartaoMask)||l.match(reCartaoFinal);
-if(mcard){cartaoAtual=mcard[1]||'';return;}
-var resto=' '+l+' ';
-// 1) DATA: "31 MAI" (dia + mes abreviado) OU "16/05" no inicio da linha
-var md=resto.match(reDataAbr);
-if(md){dataAtual=_pad2(md[1])+'/'+_MESES_ABR[md[2].toUpperCase()];resto=resto.replace(md[0],' ');}
-else{var md2=l.match(reDataIni);if(md2){dataAtual=_pad2(md2[1])+'/'+_pad2(md2[2]);resto=resto.replace(md2[0],' ');}}
+// --- secao de cartao: "Gastos referentes ao cartao: Final 2749 | JOAO RODRIGUES"
+var ms=l.match(reCartSec);
+if(ms){cartaoAtual=ms[1];nomeAtual=String(ms[2]||'').trim();g=null;return;}
+var mf=l.match(reCartFinal)||l.match(reCartMask);
+if(mf&&!reVal.test(l)){cartaoAtual=mf[1];g=null;return;}
+reVal.lastIndex=0;
+// --- dia sozinho numa linha => abre novo grupo
+if(reDiaSo.test(l)){var d=parseInt(l,10);if(d>=1&&d<=31){novoGrupo(d,null);return;}}
+// --- mes sozinho numa linha => fecha a data do grupo aberto
+var mm=l.match(reMesSo);
+if(mm){if(g&&!g.mes)g.mes=mm[1].toUpperCase();return;}
 if(ignorar.test(l)) return;
-// 2) VALOR: ultimo monetario da linha
-var vals=resto.match(reVal);
+// --- data inline no inicio: "31 MAI ..." ou "16/05 ..."
+var resto=l,inline=null;
+var mdi=l.match(reDiaMesInline);
+if(mdi){inline={dia:parseInt(mdi[1],10),mes:mdi[2].toUpperCase()};resto=l.replace(mdi[0],' ');}
+else{var mdb=l.match(reDataBarra);if(mdb){inline={dia:parseInt(mdb[1],10),mes:null,mesNum:mdb[2]};resto=l.replace(mdb[0],' ');}}
+// --- valor: ultimo monetario da linha
+var vals=resto.match(reVal);reVal.lastIndex=0;
 if(!vals||!vals.length) return;
 var valStr=vals[vals.length-1];
 var valor=parseFloat(valStr.replace(/\./g,'').replace(',','.'));
 if(!valor||valor<=0) return;
-if(!dataAtual) return;
 resto=resto.replace(valStr,' ');
-// 3) PARCELA: prioriza parenteses "( 02/03 )", senao NN/NN solto (a data ja foi removida)
+if(inline){g=novoGrupo(inline.dia,inline.mes);if(inline.mesNum)g.mesNum=inline.mesNum;}
+if(!g) return;
+// --- parcela: parenteses primeiro, senao NN/NN solto (data ja removida)
 var parc='';
 var mp=resto.match(reParcParen)||resto.match(reParcSolta);
 if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);resto=resto.replace(mp[0],' ');}
-var desc=resto.replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
-itens.push({data:dataAtual,valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:cartaoAtual});
+var desc=resto.replace(/[()|]/g,' ').replace(/R\$/g,' ').replace(/\s+/g,' ').trim();
+g.itens.push({valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:g.cartao,nome:g.nome});
+});
+var itens=[];
+grupos.forEach(function(gr){
+var mesNum=gr.mesNum||(gr.mes?_MESES_ABR[gr.mes]:null);
+if(!mesNum||!gr.dia) return;
+var data=_pad2(gr.dia)+'/'+mesNum;
+gr.itens.forEach(function(it){it.data=data;itens.push(it);});
 });
 return itens;
 }
