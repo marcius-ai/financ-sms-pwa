@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v40';
+const APP_VERSION = 'v41';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -590,8 +590,27 @@ function _simNome(a,b){a=_normNome(a);b=_normNome(b);if(!a||!b)return 0;if(a===b
 function _diffDias(iso,ddmm){if(!iso||!ddmm)return 999;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
 function _fmtC(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function _calcSugestoes(){var st=_concEstado,s=[];if(!st)return[];st.app.forEach(function(a,ai){if(a.usado)return;st.ext.forEach(function(e,ei){if(e.usado)return;if(Math.abs(a.valor-e.valor)>0.02)return;var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));if(dd>60&&sim<0.3)return;s.push({ai:ai,ei:ei,dd:dd,sim:sim,score:sim*2-(dd*0.01)});});});s.sort(function(x,y){return y.score-x.score;});var ua={},ue={},out=[];s.forEach(function(p){if(ua[p.ai]||ue[p.ei])return;ua[p.ai]=1;ue[p.ei]=1;out.push(p);});return out;}
-function confirmarPar(ai,ei){var st=_concEstado;if(!st)return;st.app[ai].usado=true;st.ext[ei].usado=true;st.pares.push({ai:ai,ei:ei,auto:false});_desenharConciliacao();}
-function confirmarTodasSugestoes(){var st=_concEstado;if(!st)return;_calcSugestoes().forEach(function(p){if(st.app[p.ai].usado||st.ext[p.ei].usado)return;st.app[p.ai].usado=true;st.ext[p.ei].usado=true;st.pares.push({ai:p.ai,ei:p.ei,auto:false});});_desenharConciliacao();}
+async function _alinharBase(a,e){
+if(!a.id) return true;
+var parcNum=1;
+if(e.parc){var pp=String(e.parc).split('/');parcNum=parseInt(pp[0])||1;}
+else if(a.parc){var pa=String(a.parc).split('/');parcNum=parseInt(pa[0])||1;}
+var parcTot=a.parcTot||1;
+var iso=_inferirDataISO(e.data,parcNum,(_conciliarCiclo&&_conciliarCiclo.mesAno)||'');
+var body={};
+if(iso&&iso!==a.dataISO) body.data_compra=iso;
+if(Math.abs(e.valor-a.valor)>0.001) body.valor=(parcTot>1)?Number((e.valor*parcTot).toFixed(2)):e.valor;
+if(!Object.keys(body).length) return true;
+try{
+var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+if(!r.ok) throw new Error('HTTP '+r.status);
+if(body.data_compra){a.dataISO=body.data_compra;a.data=_ddmm(body.data_compra);}
+if(body.valor!==undefined) a.valor=e.valor;
+return true;
+}catch(err){showToast('Erro ao salvar: '+err.message,'error');return false;}
+}
+async function confirmarPar(ai,ei){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(a.usado||e.usado)return;var ok=await _alinharBase(a,e);if(!ok)return;a.usado=true;e.usado=true;st.pares.push({ai:ai,ei:ei,auto:false});showToast('Conciliado (base corrigida)','success');_desenharConciliacao();}
+async function confirmarTodasSugestoes(){var st=_concEstado;if(!st)return;var sug=_calcSugestoes();for(var i=0;i<sug.length;i++){var p=sug[i];var a=st.app[p.ai],e=st.ext[p.ei];if(a.usado||e.usado)continue;var ok=await _alinharBase(a,e);if(!ok)continue;a.usado=true;e.usado=true;st.pares.push({ai:p.ai,ei:p.ei,auto:false});}showToast('Pares conciliados e base corrigida','success');_desenharConciliacao();}
 function _calcAjustes(){var st=_concEstado,out=[];if(!st)return out;st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;if(Math.abs(d)>0.001)out.push({ai:p.ai,ei:p.ei,d:d});});return out;}
 async function corrigirCentavos(ai,ei){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(!a.id){showToast('Lancamento sem id','error');return;}var novoTotal=(a.parcTot>1)?(e.valor*a.parcTot):e.valor;try{var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:Number(novoTotal.toFixed(2))})});if(!r.ok)throw new Error('HTTP '+r.status);a.valor=e.valor;showToast('Valor corrigido','success');_desenharConciliacao();}catch(err){showToast('Erro: '+err.message,'error');}}
 async function corrigirTodosCentavos(){var aj=_calcAjustes();for(var i=0;i<aj.length;i++){await corrigirCentavos(aj[i].ai,aj[i].ei);}}
@@ -674,6 +693,7 @@ var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,ma
 return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div><button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
+setTimeout(function(){var _at=document.querySelector('#faturaList .fatura-card.atual');if(_at&&_at.scrollIntoView){try{_at.scrollIntoView({block:'start'});}catch(e){}}},60);
 }
 document.addEventListener('DOMContentLoaded',function(){var _v=document.getElementById('appVersao');if(_v)_v.textContent=APP_VERSION;carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);});
 </script>
