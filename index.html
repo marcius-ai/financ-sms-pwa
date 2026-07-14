@@ -244,7 +244,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v54';
+const APP_VERSION = 'v55';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -441,7 +441,7 @@ async function abrirGraficos(){
 mostrarTela('screenGraficos');document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Carregando...</div>';
 if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
 var saved=localStorage.getItem('fechamento_atual');
-try{var cfg=await (await fetch(API+'/config')).json();if(cfg&&cfg.fechamento_atual) saved=cfg.fechamento_atual;}catch(e){}
+try{var cfg=await (await fetch(API+'/config')).json();if(cfg&&cfg.fechamento_atual){saved=cfg.fechamento_atual;localStorage.setItem('fechamento_atual',saved);}if(cfg&&cfg.proximo_fechamento){localStorage.setItem('proximo_fechamento',cfg.proximo_fechamento);}}catch(e){}
 if(!saved){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>';return;}
 _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);var lista=await res.json();_faturasDados=calcFaturasDados(lista,saved);var pend=contarMesesParcelasPendentes(lista,saved);renderGraficosUI(_faturasDados,pend);}catch(e){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
 }
