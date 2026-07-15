@@ -96,6 +96,42 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #toast.show { transform:translateX(-50%) translateY(0); }
 #toast.success { background:#2e7d32; }
 #toast.error { background:#c62828; }
+/* ---- Relatorio da fatura (feito pra virar PDF pelo print do navegador) ---- */
+.rel-doc { width:100%; max-width:760px; background:#fff; color:#222; border-radius:12px; padding:28px 30px; font-size:12px; line-height:1.45; }
+.rel-h1 { font-size:20px; font-weight:900; margin:0 0 2px; letter-spacing:-0.3px; }
+.rel-sub { font-size:11px; color:#666; margin-bottom:18px; }
+.rel-sec { font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:#888; margin:22px 0 8px; border-bottom:1px solid #e2e2e2; padding-bottom:4px; }
+.rel-kpis { display:flex; gap:10px; flex-wrap:wrap; }
+.rel-kpi { flex:1; min-width:120px; border:1px solid #e2e2e2; border-radius:10px; padding:10px 12px; }
+.rel-kpi-l { font-size:9px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:#888; }
+.rel-kpi-v { font-size:17px; font-weight:900; margin-top:2px; }
+.rel-bar-row { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+.rel-bar-lab { width:120px; font-size:10px; font-weight:700; text-align:right; flex-shrink:0; }
+.rel-bar-track { flex:1; background:#f0f0f0; border-radius:3px; height:15px; position:relative; }
+.rel-bar-fill { height:100%; border-radius:3px; }
+.rel-bar-val { width:132px; font-size:10px; flex-shrink:0; }
+.rel-bar-pct { color:#c62828; font-weight:700; }
+.rel-bar-acc { color:#e65100; font-weight:700; font-size:9px; }
+table.rel-t { width:100%; border-collapse:collapse; font-size:10px; }
+table.rel-t th { text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:#888; border-bottom:1.5px solid #ddd; padding:5px 4px; }
+table.rel-t td { border-bottom:1px solid #f0f0f0; padding:4px; vertical-align:top; }
+table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.rel-catrow td { background:#fafafa; font-weight:800; font-size:10px; }
+.rel-foot { margin-top:22px; padding-top:8px; border-top:1px solid #e2e2e2; font-size:9px; color:#999; }
+.rel-ok { color:#1b5e20; font-weight:800; }
+.rel-warn { color:#b71c1c; font-weight:800; }
+@media print {
+  @page { size:A4 portrait; margin:12mm; }
+  body { background:#fff !important; }
+  .no-print, #appVersao, header, .hist-header { display:none !important; }
+  .rel-doc { max-width:none; border-radius:0; padding:0; font-size:10px; }
+  /* nao cortar linha nem grupo no meio da quebra de pagina */
+  table.rel-t { page-break-inside:auto; }
+  table.rel-t tr { page-break-inside:avoid; page-break-after:auto; }
+  table.rel-t thead { display:table-header-group; }
+  .rel-sec, .rel-kpis { page-break-inside:avoid; page-break-after:avoid; }
+  .rel-bar-row { page-break-inside:avoid; }
+}
 #appVersao { position:fixed; bottom:4px; right:8px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.45); z-index:60; cursor:pointer; letter-spacing:0.5px; padding:4px 6px; }
 #screenGraficos { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; overflow-y: auto; color: #fff; }
 .graf-toggle { display:flex; gap:0; background:rgba(255,255,255,0.1); border-radius:20px; padding:3px; margin-bottom:14px; width:100%; max-width:480px; }
@@ -190,6 +226,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 <div id="screenHistorico" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button><div class="hist-title">&#128197; Historico</div></div><div style="width:100%;max-width:480px;margin-bottom:12px;"><input type="text" id="histSearch" oninput="renderHistorico()" placeholder="&#128269; Buscar nome, categoria, valor ou data..." autocomplete="off" style="width:100%;padding:10px 14px;border:none;border-radius:20px;font-size:14px;outline:none;background:rgba(255,255,255,0.15);color:#fff;" /></div><div id="histList" class="hist-list"><div class="hist-loading">Carregando...</div></div></div>
 <div id="screenGraficos" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharGraficos()">&#8592; Voltar</button><div class="hist-title">&#128202; Graficos</div></div><div id="graficosContent" style="width:100%;max-width:480px;"><div class="hist-loading">Carregando...</div></div></div>
+<div id="screenRelatorio" class="hidden">
+<div class="hist-header no-print"><button class="btn-back" onclick="fecharRelatorio()">&#8592; Voltar</button><div class="hist-title">&#128196; Relatorio</div></div>
+<div class="no-print" style="width:100%;max-width:760px;margin-bottom:12px;text-align:center;">
+<button onclick="window.print()" style="background:#2e7d32;color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:800;cursor:pointer;">&#128424; Salvar em PDF / Imprimir</button>
+<div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:6px;">Na janela de impressao escolha <b>Salvar como PDF</b>.</div>
+</div>
+<div id="relatorioContent" class="rel-doc"></div>
+</div>
 <div id="screenFaturas" class="hidden">
 <div class="hist-header"><button class="btn-back" onclick="fecharFaturas()">&#8592; Voltar</button><div class="hist-title">&#128196; Faturas</div></div>
 <div style="width:100%;max-width:480px;padding:12px 16px;">
@@ -246,7 +290,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v66';
+const APP_VERSION = 'v67';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -266,7 +310,7 @@ return '';
 }
 let _chartAtivo = null, _faturasDados = [], _grafModo = 'categoria';
 function mostrarTela(id) {
-['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas'].forEach(function(s) {
+['screenLoading','screenVazio','screenErro','screenGasto','screenHistorico','screenGraficos','screenFaturas','screenRelatorio'].forEach(function(s) {
 var el = document.getElementById(s); if(el) el.classList.add('hidden');
 });
 var el2 = document.getElementById(id); if(el2) el2.classList.remove('hidden');
@@ -497,7 +541,7 @@ var html='<div id="graf-btns" style="display:flex;gap:6px;overflow-x:auto;flex-w
 faturas.forEach(function(f,i){html+='<button data-idx="'+i+'" style="flex-shrink:0;padding:6px 13px;border-radius:20px;border:none;'+(i===ai?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:12px;cursor:pointer;">'+f.label+'</button>';});
 html+='</div>';
 html+='<div class="graf-toggle"><button class="graf-toggle-btn active" id="btnGrafCat" onclick="trocarModoGraf(this)">Por Categoria</button><button class="graf-toggle-btn" id="btnGrafEstab" onclick="trocarModoGraf(this)">Por Estabelecimento</button></div>';
-html+='<div style="width:100%;max-width:480px;margin-bottom:12px;"><button class="fatura-conc-btn" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.35);color:#fff;margin-top:0;" onclick="abrirConciliacaoGraf()">&#128269; Conciliar com a fatura do banco</button></div>';
+html+='<div style="width:100%;max-width:480px;margin-bottom:12px;"><button class="fatura-conc-btn" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.35);color:#fff;margin-top:0;" onclick="abrirConciliacaoGraf()">&#128269; Conciliar com a fatura do banco</button><button onclick="abrirRelatorioGraf()" style="width:100%;background:#2e7d32;color:#fff;border:none;border-radius:12px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;margin-bottom:12px;">&#128196; Relatorio (salvar em PDF)</button></div>';
 html+='<div id="drillNav" style="display:none;width:100%;max-width:480px;margin-bottom:10px;"><button onclick="voltarCategorias()" style="width:100%;padding:11px;border:none;border-radius:12px;background:rgba(255,255,255,0.18);color:#fff;font-weight:700;font-size:14px;cursor:pointer;">&#8592; Voltar &agrave;s categorias</button></div>';
 html+='<div id="graf-total" style="background:rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;width:100%;max-width:480px;margin-bottom:14px;text-align:center;"></div><div style="background:#fff;border-radius:16px;padding:16px;width:100%;max-width:480px;box-shadow:0 4px 16px rgba(0,0,0,0.2);"><canvas id="canvasGraf"></canvas></div><div id="graf-hint" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px;min-height:14px;"></div>';
 html+='<div id="resumoFatura" style="width:100%;max-width:480px;"></div>';document.getElementById('graficosContent').innerHTML=html;
@@ -600,6 +644,97 @@ function toggleAddForm(formId){var el=document.getElementById(formId);if(el) el.
 var _conciliarCiclo=null;
 function abrirConciliacaoGraf(){if(!_grafFatura){showToast('Selecione um mes','error');return;}_conciliarCiclo={label:_grafFatura.labelFull||_grafFatura.label,mesAno:_grafFatura.mesAno||'',itens:_grafFatura.itens||[]};document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
 function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||null;if(!_conciliarCiclo){showToast('Fatura nao encontrada','error');return;}document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
+
+// ================= RELATORIO DA FATURA =================
+// Feito pra virar PDF pelo print do navegador: sem canvas (canvas e traicoeiro
+// na impressao), barras em HTML/CSS que sempre saem no papel.
+var _relCiclo=null;
+function _relMoeda(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function _relDataBR(iso){if(!iso)return '-';var p=String(iso).slice(0,10).split('-');return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):iso;}
+function _relBarras(pares,total,cores){
+var html='',acc=0;
+pares.forEach(function(e,i){
+var v=e[1],pct=total>0?(v/total*100):0;acc+=pct;
+var cor=(cores&&cores[i])||'#5c6bc0';
+html+='<div class="rel-bar-row"><div class="rel-bar-lab">'+_escHtml(e[0])+'</div>'
++'<div class="rel-bar-track"><div class="rel-bar-fill" style="width:'+Math.max(pct,0.6).toFixed(1)+'%;background:'+cor+';"></div></div>'
++'<div class="rel-bar-val">'+_relMoeda(v)+' <span class="rel-bar-pct">'+pct.toFixed(0)+'%</span> <span class="rel-bar-acc">('+acc.toFixed(0)+'%)</span></div></div>';
+});
+return html||'<div style="color:#999;font-size:10px;">Sem dados.</div>';
+}
+function abrirRelatorio(cicloIdx){
+var c=(_faturasCiclos&&_faturasCiclos[cicloIdx])||_relCiclo;
+if(!c){showToast('Fatura nao encontrada','error');return;}
+_relCiclo=c;
+mostrarTela('screenRelatorio');
+document.getElementById('relatorioContent').innerHTML=_montarRelatorio(c);
+}
+function fecharRelatorio(){mostrarTela('screenFaturas');}
+function _montarRelatorio(c){
+var itens=(c.itens||[]).slice();
+var total=itens.reduce(function(a,i){return a+i.valor;},0);
+var porCat={},porEstab={};
+itens.forEach(function(i){
+var cat=i.categoria||'Sem categoria';
+var nome=(i.apelido&&i.apelido.trim())?i.apelido.trim():capitalizarPrimeira(i.estabelecimento||'?');
+porCat[cat]=(porCat[cat]||0)+i.valor;
+porEstab[nome]=(porEstab[nome]||0)+i.valor;
+});
+var emp=0;Object.keys(porCat).forEach(function(k){if(String(k).toLowerCase()==='empresa')emp+=porCat[k];});
+var pes=total-emp;
+var cats=Object.entries(porCat).sort(function(a,b){return b[1]-a[1];});
+var estabs=Object.entries(porEstab).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
+var coresCat=cats.map(function(e){return CORES_CAT[String(e[0]).toLowerCase().replace('/','').replace(' ','_')]||CORES_CAT[String(e[0]).toLowerCase()]||'#9E9E9E';});
+var coresEst=estabs.map(function(e,i){return CORES_ESTAB[i%CORES_ESTAB.length];});
+
+// status da conciliacao (so informativo; nao recalcula nada)
+var conc='<span style="color:#999;">nao conciliada nesta sessao</span>';
+if(_concEstado&&_conciliarCiclo&&_conciliarCiclo.mesAno===c.mesAno){
+var tA=_concEstado.app.reduce(function(a,i){return a+i.valor;},0);
+var tE=_concEstado.ext.reduce(function(a,i){return a+i.valor;},0);
+var dif=tE-tA;
+conc=(Math.abs(dif)<=0.05)
+?'<span class="rel-ok">conferida com a fatura do banco &mdash; zero a zero</span>'
+:'<span class="rel-warn">diferenca de '+_relMoeda(Math.abs(dif))+' vs. fatura do banco ('+_relMoeda(tE)+')</span>';
+}
+
+var linhas='';
+var porCatItens={};
+itens.forEach(function(i){var k=i.categoria||'Sem categoria';(porCatItens[k]=porCatItens[k]||[]).push(i);});
+Object.entries(porCatItens).sort(function(a,b){return porCat[b[0]]-porCat[a[0]];}).forEach(function(en){
+var cat=en[0],lst=en[1].slice().sort(function(a,b){return (b.dataCompra+' '+(b.hora||'')).localeCompare(a.dataCompra+' '+(a.hora||''));});
+linhas+='<tr class="rel-catrow"><td colspan="4">'+_escHtml(labelCategoria?labelCategoria(cat):cat)+'</td><td class="n">'+_relMoeda(porCat[cat])+'</td></tr>';
+lst.forEach(function(i){
+var nome=(i.apelido&&i.apelido.trim())?i.apelido.trim():capitalizarPrimeira(i.estabelecimento||'?');
+var dt=i.dataCompra?_relDataBR(i.dataCompra).slice(0,5):'-';
+var hr=i.hora?String(i.hora).substring(0,5):'';
+linhas+='<tr><td class="n">'+dt+(hr?' <span style="color:#aaa;">'+hr+'</span>':'')+'</td>'
++'<td>'+_escHtml(nome)+'</td>'
++'<td style="color:#888;">'+(i.parcTotal>1?(i.parcAtual+'/'+i.parcTotal):'')+'</td>'
++'<td style="color:#aaa;">'+(i.cartao?('****'+i.cartao):'')+'</td>'
++'<td class="n">'+_relMoeda(i.valor)+'</td></tr>';
+});
+});
+
+var hoje=new Date();
+return '<div class="rel-h1">Fatura '+_escHtml(c.labelFull||c.label||'')+'</div>'
++'<div class="rel-sub">Periodo de '+_relDataBR(c.inicio)+' a '+_relDataBR(c.fechamento)+' &nbsp;&bull;&nbsp; vencimento '+_relDataBR(c.vencimento)+'<br>Conciliacao: '+conc+'</div>'
++'<div class="rel-kpis">'
++'<div class="rel-kpi"><div class="rel-kpi-l">Total da fatura</div><div class="rel-kpi-v">'+_relMoeda(total)+'</div></div>'
++'<div class="rel-kpi"><div class="rel-kpi-l">Pessoais</div><div class="rel-kpi-v" style="color:#2e7d32;">'+_relMoeda(pes)+'</div></div>'
++'<div class="rel-kpi"><div class="rel-kpi-l">Empresa</div><div class="rel-kpi-v" style="color:#c62828;">'+_relMoeda(emp)+'</div></div>'
++'<div class="rel-kpi"><div class="rel-kpi-l">Lancamentos</div><div class="rel-kpi-v">'+itens.length+'</div></div>'
++'</div>'
++'<div class="rel-sec">Por categoria</div>'+_relBarras(cats,total,coresCat)
++'<div class="rel-sec">Maiores estabelecimentos (top 15)</div>'+_relBarras(estabs,total,coresEst)
++'<div class="rel-sec">Todos os lancamentos ('+itens.length+')</div>'
++'<table class="rel-t"><thead><tr><th>Data</th><th>Estabelecimento</th><th>Parc.</th><th>Cartao</th><th style="text-align:right;">Valor</th></tr></thead><tbody>'+linhas+'</tbody></table>'
++'<div class="rel-foot">Finan$M$ '+APP_VERSION+' &bull; gerado em '+hoje.toLocaleDateString('pt-BR')+' as '+hoje.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</div>';
+}
+function abrirRelatorioGraf(){
+if(!_grafFatura){showToast('Selecione um mes','error');return;}
+_relCiclo=_grafFatura;abrirRelatorio(-1);
+}
 function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
 function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
 async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var byY={};content.items.forEach(function(it){var y=Math.round(it.transform[5]);(byY[y]=byY[y]||[]).push({x:it.transform[4],s:it.str});});Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){var line=byY[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
@@ -1000,7 +1135,7 @@ return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class=
 return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+cat+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
 var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div><button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
+return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+totalFmt+'</div><button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-conc-btn" style="background:#2e7d32;" onclick="abrirRelatorio('+cicloIdx+')">&#128196; Relatorio (salvar em PDF)</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 var _sf=document.getElementById('screenFaturas');if(_sf)_sf.scrollTop=0;
