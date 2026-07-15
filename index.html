@@ -96,7 +96,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #toast.show { transform:translateX(-50%) translateY(0); }
 #toast.success { background:#2e7d32; }
 #toast.error { background:#c62828; }
-#appVersao { position:fixed; bottom:4px; right:8px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.45); z-index:60; pointer-events:none; letter-spacing:0.5px; }
+#appVersao { position:fixed; bottom:4px; right:8px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.45); z-index:60; cursor:pointer; letter-spacing:0.5px; padding:4px 6px; }
 #screenGraficos { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 16px; overflow-y: auto; color: #fff; }
 .graf-toggle { display:flex; gap:0; background:rgba(255,255,255,0.1); border-radius:20px; padding:3px; margin-bottom:14px; width:100%; max-width:480px; }
 .graf-toggle-btn { flex:1; padding:7px 12px; border-radius:17px; border:none; background:transparent; color:rgba(255,255,255,0.6); font-weight:700; font-size:12px; cursor:pointer; transition:all 0.2s; }
@@ -246,7 +246,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v61';
+const APP_VERSION = 'v62';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -978,12 +978,20 @@ var pub=parseInt(m[1],10),atu=parseInt(String(APP_VERSION).replace(/[^0-9]/g,'')
 if(!(pub>atu))return;
 sessionStorage.setItem('autoupd','1');
 var _v=document.getElementById('appVersao');if(_v)_v.textContent='atualizando...';
-try{var rs=await navigator.serviceWorker.getRegistrations();for(var i=0;i<rs.length;i++){await rs[i].unregister();}}catch(e){}
-try{var ks=await caches.keys();for(var j=0;j<ks.length;j++){await caches.delete(ks[j]);}}catch(e){}
-location.reload();
+await _forcarUpdate();
 }catch(e){}
 }
-document.addEventListener('DOMContentLoaded',function(){var _v=document.getElementById('appVersao');if(_v)_v.textContent=APP_VERSION;carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);setTimeout(checarAtualizacao,1200);});
+// Limpa service worker + caches e recarrega FURANDO o cache HTTP.
+// O GitHub Pages manda Cache-Control: max-age=600, entao location.reload()
+// devolvia o index.html velho mesmo com os caches limpos -- era por isso
+// que o app ficava preso numa versao antiga.
+async function _forcarUpdate(){
+var _v=document.getElementById('appVersao');if(_v)_v.textContent='atualizando...';
+try{var rs=await navigator.serviceWorker.getRegistrations();for(var i=0;i<rs.length;i++){await rs[i].unregister();}}catch(e){}
+try{var ks=await caches.keys();for(var j=0;j<ks.length;j++){await caches.delete(ks[j]);}}catch(e){}
+location.replace(location.pathname+'?u='+Date.now());
+}
+document.addEventListener('DOMContentLoaded',function(){var _v=document.getElementById('appVersao');if(_v){_v.textContent=APP_VERSION;_v.title='Toque para forcar atualizacao';_v.onclick=function(){sessionStorage.removeItem('autoupd');_forcarUpdate();};}carregarGastos();registerServiceWorker();checarStatusNotif();var _f0=localStorage.getItem('fechamento_atual');if(_f0)atualizarVencimento(_f0);setTimeout(checarAtualizacao,1200);});
 </script>
 </body>
 </html>
