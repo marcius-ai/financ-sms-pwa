@@ -246,7 +246,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v63';
+const APP_VERSION = 'v64';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -447,6 +447,17 @@ try{var cfg=await (await fetch(API+'/config')).json();if(cfg&&cfg.fechamento_atu
 if(!saved){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Configure o fechamento na aba Faturas primeiro.</div>';return;}
 _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);var lista=await res.json();_faturasDados=calcFaturasDados(lista,saved);var pend=contarMesesParcelasPendentes(lista,saved);renderGraficosUI(_faturasDados,pend);}catch(e){document.getElementById('graficosContent').innerHTML='<div class="hist-loading">Erro: '+e.message+'</div>';}
 }
+// O cartao cobra exatamente UMA parcela por fatura: a 1a na fatura que contem
+// a data da compra, a 2a na fatura seguinte, e assim por diante. Espalhar por
+// data de calendario colocava DUAS parcelas da mesma compra num ciclo de 32
+// dias (ex: TKT 2/10 em 16/06 e 3/10 em 16/07, com ciclo 15/06->16/07).
+function _idxCicloData(ciclos,iso){for(var i=0;i<ciclos.length;i++){if(iso>=ciclos[i].inicio&&iso<=ciclos[i].fechamento)return i;}return -1;}
+function _idxCicloParcela(ciclos,dataCompra,p){
+var i0=_idxCicloData(ciclos,dataCompra);
+if(i0<0)return -1;
+var i=i0+(p-1);
+return (i>=0&&i<ciclos.length)?i:-1;
+}
 function calcFaturasDados(lista,fechStr){
 var proximoStr=localStorage.getItem('proximo_fechamento')||'';
 var faixa=_faixaDatas(lista);
@@ -459,10 +470,9 @@ var cat=g.categoria||'sem_categoria',
 estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),
 vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1,vp=pt>1?vt/pt:vt;
 for(var p=1;p<=pt;p++){
-var pd=_isoD(addMesesData(g.data_compra,p-1));
-for(var i=0;i<ciclos.length;i++){
-var c=ciclos[i];
-if(pd>=c.inicio&&pd<=c.fechamento){
+var _ci=_idxCicloParcela(ciclos,g.data_compra,p);
+if(_ci>=0){
+var c=ciclos[_ci];
 c.cats[cat]=(c.cats[cat]||0)+vp;
 c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;
 if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;
@@ -472,8 +482,6 @@ var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;
 if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}
 c.itens.push({id:g.id,dataCompra:g.data_compra,valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,parcAtual:p,parcTotal:pt,cartao:g.cartao_final||''});
 c.total+=vp;
-break;
-}
 }
 }
 });
@@ -831,9 +839,11 @@ if(e.parc){var pp=String(e.parc).split('/');parcNum=parseInt(pp[0])||1;parcTot=p
 var mesAno=(_conciliarCiclo&&_conciliarCiclo.mesAno)||'';
 var iso=_inferirDataISO(e.data,parcNum,mesAno);
 var total=(parcTot>1)?Number((e.valor*parcTot).toFixed(2)):e.valor;
-var nome=capitalizarPrimeira(e.desc||'Lancamento da fatura');
+var inp=document.getElementById('nomefalta-'+ei);
+var digitado=inp?String(inp.value||'').trim():'';
+var nome=capitalizarPrimeira(digitado||e.desc||'Lancamento da fatura');
 try{
-var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
+var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:digitado||e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
 if(!r.ok)throw new Error('HTTP '+r.status);
 st.app.push({id:null,dataISO:iso,data:e.data,valor:e.valor,parcTot:parcTot,nome:nome,orig:e.desc||'',parc:(parcTot>1?(parcNum+'/'+parcTot):''),usado:true});
 e.usado=true;
@@ -919,7 +929,7 @@ var linhas='';
 sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
 linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;"><td style="padding:6px;vertical-align:top;">'+cApp(a)+'</td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;"><button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div></td></tr>';});
 falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<option value="'+k+'">'+labelCategoria(k)+'</option>';}).join('');
-linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;"><td style="padding:6px;color:#b71c1c;text-align:center;vertical-align:middle;">&mdash;<div style="font-size:9px;">nao existe</div></td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;"><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;"><td style="padding:6px;color:#b71c1c;text-align:center;vertical-align:middle;">&mdash;<div style="font-size:9px;">nao existe</div></td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;"><input id="nomefalta-'+o.i+'" value="'+_escHtml(capitalizarPrimeira(e.desc||''))+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
 sobra.forEach(function(o){var a=o.a;
 linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;"><td style="padding:6px;vertical-align:top;">'+cApp(a)+'</td><td style="padding:6px;color:#8d6e00;text-align:center;vertical-align:middle;">&mdash;<div style="font-size:9px;">nao esta na fatura</div></td><td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>';});
 if(_concMostrarOk){st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
@@ -944,7 +954,7 @@ var faixa=_faixaDatas(gastosData);
 var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
 ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
-gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0),valorParcela=parcTotal>1?valorTotal/parcTotal:valorTotal;for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),parcDateStr=parcDate.toISOString().slice(0,10),cicloIdx=calcFaturaId(parcDateStr,ciclos);if(cicloIdx===-1) return;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,cartao:g.cartao_final||''});}});
+gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0),valorParcela=parcTotal>1?valorTotal/parcTotal:valorTotal;for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,cartao:g.cartao_final||''});}});
 var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
 function _prio(c){if(c.mesAno===_mesHoje)return 0;if(c.tipo==='atual')return 1;if(c.tipo==='futura')return 2;return 3;}
 var _ordenados=ciclos.slice().sort(function(a,b){var pa=_prio(a),pb=_prio(b);if(pa!==pb)return pa-pb;return String(b.mesAno).localeCompare(String(a.mesAno));});
