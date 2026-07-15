@@ -290,7 +290,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v67';
+const APP_VERSION = 'v68';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -683,6 +683,7 @@ porEstab[nome]=(porEstab[nome]||0)+i.valor;
 var emp=0;Object.keys(porCat).forEach(function(k){if(String(k).toLowerCase()==='empresa')emp+=porCat[k];});
 var pes=total-emp;
 var cats=Object.entries(porCat).sort(function(a,b){return b[1]-a[1];});
+var catsLbl=cats.map(function(e){return [labelCategoria(e[0]),e[1]];}); // barra mostrava a chave crua ('bares'), tabela ja usava o label
 var estabs=Object.entries(porEstab).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
 var coresCat=cats.map(function(e){return CORES_CAT[String(e[0]).toLowerCase().replace('/','').replace(' ','_')]||CORES_CAT[String(e[0]).toLowerCase()]||'#9E9E9E';});
 var coresEst=estabs.map(function(e,i){return CORES_ESTAB[i%CORES_ESTAB.length];});
@@ -725,7 +726,7 @@ return '<div class="rel-h1">Fatura '+_escHtml(c.labelFull||c.label||'')+'</div>'
 +'<div class="rel-kpi"><div class="rel-kpi-l">Empresa</div><div class="rel-kpi-v" style="color:#c62828;">'+_relMoeda(emp)+'</div></div>'
 +'<div class="rel-kpi"><div class="rel-kpi-l">Lancamentos</div><div class="rel-kpi-v">'+itens.length+'</div></div>'
 +'</div>'
-+'<div class="rel-sec">Por categoria</div>'+_relBarras(cats,total,coresCat)
++'<div class="rel-sec">Por categoria</div>'+_relBarras(catsLbl,total,coresCat)
 +'<div class="rel-sec">Maiores estabelecimentos (top 15)</div>'+_relBarras(estabs,total,coresEst)
 +'<div class="rel-sec">Todos os lancamentos ('+itens.length+')</div>'
 +'<table class="rel-t"><thead><tr><th>Data</th><th>Estabelecimento</th><th>Parc.</th><th>Cartao</th><th style="text-align:right;">Valor</th></tr></thead><tbody>'+linhas+'</tbody></table>'
