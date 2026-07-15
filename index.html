@@ -293,7 +293,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v70';
+const APP_VERSION = 'v71';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -538,7 +538,7 @@ if(!c.catEstabs[cat])c.catEstabs[cat]={};
 var ce=c.catEstabs[cat][estabKey];
 var plabel=pt>1?(String(p).padStart(2,'0')+'/'+String(pt).padStart(2,'0')):null;
 if(!ce){c.catEstabs[cat][estabKey]={v:vp,parc:plabel};}else{ce.v+=vp;ce.parc=null;}
-c.itens.push({id:g.id,dataCompra:g.data_compra,valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,categoria:cat,parcAtual:p,parcTotal:pt,cartao:g.cartao_final||'',moeda:g.moeda||extrairMoeda(g.mensagem_original)});
+c.itens.push({id:g.id,dataCompra:g.data_compra,hora:g.hora_compra||'',valor:vp,estabelecimento:g.estabelecimento,apelido:g.apelido,categoria:cat,parcAtual:p,parcTotal:pt,cartao:g.cartao_final||'',moeda:g.moeda||extrairMoeda(g.mensagem_original)});
 c.total+=vp;
 }
 }
@@ -995,7 +995,7 @@ var nome=capitalizarPrimeira(digitado||e.desc||'Lancamento da fatura');
 try{
 var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:digitado||e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
 if(!r.ok)throw new Error('HTTP '+r.status);
-st.app.push({id:null,dataISO:iso,data:e.data,valor:e.valor,parcTot:parcTot,nome:nome,orig:e.desc||'',parc:(parcTot>1?(parcNum+'/'+parcTot):''),usado:true});
+st.app.push({id:null,dataISO:iso,data:e.data,hora:'',valor:e.valor,moeda:'BRL',cat:cat,parcTot:parcTot,nome:nome,orig:e.desc||'',parc:(parcTot>1?(parcNum+'/'+parcTot):''),usado:true});
 e.usado=true;
 st.pares.push({ai:st.app.length-1,ei:ei,auto:false});
 showToast('Lancamento adicionado','success');
@@ -1038,7 +1038,7 @@ function _chaveConc(a){return 'conc:'+(_conciliarCiclo&&_conciliarCiclo.mesAno||
 function _marcadosSalvos(){try{return JSON.parse(localStorage.getItem('conciliados')||'{}');}catch(e){return {};}}
 function _salvarMarcados(m){try{localStorage.setItem('conciliados',JSON.stringify(m));}catch(e){}}
 function _renderConciliacao(extrato){
-var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_meusCartoes||!_meusCartoes.length)return true;var c=String(it.cartao||'');return c===''||_meusCartoes.indexOf(c)>=0;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),valor:parseFloat(it.valor||0),moeda:it.moeda||'BRL',cat:it.categoria||'',parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
+var app=((_conciliarCiclo&&_conciliarCiclo.itens)||[]).filter(function(it){if(!_meusCartoes||!_meusCartoes.length)return true;var c=String(it.cartao||'');return c===''||_meusCartoes.indexOf(c)>=0;}).map(function(it){return {id:it.id||null,dataISO:it.dataCompra||'',data:_ddmm(it.dataCompra),hora:(it.hora||'').substring(0,5),valor:parseFloat(it.valor||0),moeda:it.moeda||'BRL',cat:it.categoria||'',parcTot:parseInt(it.parcTotal||1),nome:(it.apelido&&it.apelido.trim())?it.apelido.trim():(it.estabelecimento||'?'),orig:it.estabelecimento||'',parc:it.parcTotal>1?(it.parcAtual+'/'+it.parcTotal):'',usado:false};});
 var ext=(extrato||[]).map(function(s){return {data:String(s.data||'').slice(0,5),valor:parseFloat(s.valor||0),desc:s.descricao||'',parc:s.parcela||'',cartao:String(s.cartao||''),usado:false};});
 _concMaiores=ext.slice().sort(function(a,b){return b.valor-a.valor;}).slice(0,5).map(function(x){return {valor:x.valor,descricao:x.desc};});
 _concEstado={app:app,ext:ext,pares:[]};
@@ -1139,7 +1139,7 @@ function cApp(a,ai){
 if(!a)return '<td colspan="4" style="padding:6px;color:#b71c1c;text-align:center;">&mdash;<div style="font-size:9px;">nao existe</div></td>';
 var lapis=(a.id&&ai!==undefined)?' <span onclick="editarLinha('+ai+')" title="Editar nome, valor, categoria" style="cursor:pointer;opacity:.45;font-size:11px;">&#9998;</span>':'';
 return '<td style="padding:6px;"><b>'+_escHtml(a.nome)+'</b>'+lapis+'</td>'
-+'<td style="padding:6px;color:#777;white-space:nowrap;">'+a.data+'</td>'
++'<td style="padding:6px;color:#777;white-space:nowrap;">'+a.data+(a.hora?'<div style="font-size:9px;color:#aaa;">'+a.hora+'</div>':'')+'</td>'
 +'<td style="padding:6px;color:#888;white-space:nowrap;">'+(a.parc||'')+'</td>'
 +'<td style="padding:6px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;">'+fmt(a.valor)+'</td>';}
 function cExt(e){
