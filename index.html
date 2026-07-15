@@ -293,7 +293,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v69';
+const APP_VERSION = 'v70';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -498,6 +498,16 @@ _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok
 // a data da compra, a 2a na fatura seguinte, e assim por diante. Espalhar por
 // data de calendario colocava DUAS parcelas da mesma compra num ciclo de 32
 // dias (ex: TKT 2/10 em 16/06 e 3/10 em 16/07, com ciclo 15/06->16/07).
+// O banco nao faz total/N arredondado em toda parcela: divide em CENTAVOS e
+// joga a sobra nas primeiras. 400,00/3 = 133,33 com 1 centavo sobrando ->
+// parcela 1 = 133,34, as outras 133,33, somando 400,00 exato. Fazendo
+// total/N o app dava 133,33x3 = 399,99 e nascia a diferenca de 1 centavo.
+function _valorParcela(total,pt,p){
+total=parseFloat(total||0);pt=parseInt(pt||1)||1;
+if(pt<=1)return Number(total.toFixed(2));
+var cents=Math.round(total*100),base=Math.floor(cents/pt),resto=cents-base*pt;
+return (base+((p<=resto)?1:0))/100;
+}
 function _idxCicloData(ciclos,iso){for(var i=0;i<ciclos.length;i++){if(iso>=ciclos[i].inicio&&iso<=ciclos[i].fechamento)return i;}return -1;}
 function _idxCicloParcela(ciclos,dataCompra,p){
 var i0=_idxCicloData(ciclos,dataCompra);
@@ -515,8 +525,9 @@ ciclos.forEach(function(c){c.cats={};c.estabs={};c.estabsPessoal={};c.catEstabs=
 if(!g.data_compra)return;
 var cat=g.categoria||'sem_categoria',
 estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),
-vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1,vp=pt>1?vt/pt:vt;
+vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1;
 for(var p=1;p<=pt;p++){
+var vp=_valorParcela(vt,pt,p);
 var _ci=_idxCicloParcela(ciclos,g.data_compra,p);
 if(_ci>=0){
 var c=ciclos[_ci];
@@ -1123,10 +1134,24 @@ st.app.forEach(function(a,i){if(!a.usado&&!emA[i])sobra.push({a:a,i:i});});
 var _mk=_marcadosSalvos();var pendSalvar=st.pares.filter(function(p){var a=st.app[p.ai];return a&&a.id&&!_mk[_chaveConc(a)];}).length;
 var okZero=Math.abs(difReal)<=0.005&&falta.length===0&&sobra.length===0&&sug.length===0;
 function fmt(v){return _fmtC(v);}
-function cApp(a,ai){var base='<b>'+a.nome+'</b>'+(a.parc?' <span style="opacity:.65">'+a.parc+'</span>':'')+'<br><span style="opacity:.65">'+a.data+' &bull; '+fmt(a.valor)+'</span>'
-+(a.id&&ai!==undefined?' <span onclick="editarLinha('+ai+')" title="Editar nome, valor, categoria" style="cursor:pointer;opacity:.5;font-size:11px;">&#9998;</span>':'');
-return base+((_concEdit===ai&&ai!==undefined)?_formEdit(a,ai):'');}
-function cExt(e){return '<b>'+(e.desc||'-')+'</b>'+(e.parc?' <span style="opacity:.65">'+e.parc+'</span>':'')+'<br><span style="opacity:.65">'+e.data+' &bull; '+fmt(e.valor)+'</span>';}
+// colunas separadas: nome | data | parc | valor (o painel e largo, nao precisa empilhar)
+function cApp(a,ai){
+if(!a)return '<td colspan="4" style="padding:6px;color:#b71c1c;text-align:center;">&mdash;<div style="font-size:9px;">nao existe</div></td>';
+var lapis=(a.id&&ai!==undefined)?' <span onclick="editarLinha('+ai+')" title="Editar nome, valor, categoria" style="cursor:pointer;opacity:.45;font-size:11px;">&#9998;</span>':'';
+return '<td style="padding:6px;"><b>'+_escHtml(a.nome)+'</b>'+lapis+'</td>'
++'<td style="padding:6px;color:#777;white-space:nowrap;">'+a.data+'</td>'
++'<td style="padding:6px;color:#888;white-space:nowrap;">'+(a.parc||'')+'</td>'
++'<td style="padding:6px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;">'+fmt(a.valor)+'</td>';}
+function cExt(e){
+if(!e)return '<td colspan="4" style="padding:6px;color:#8d6e00;text-align:center;">&mdash;<div style="font-size:9px;">nao esta na fatura</div></td>';
+return '<td style="padding:6px;"><b>'+_escHtml(e.desc||'-')+'</b></td>'
++'<td style="padding:6px;color:#777;white-space:nowrap;">'+e.data+'</td>'
++'<td style="padding:6px;color:#888;white-space:nowrap;">'+(e.parc||'')+'</td>'
++'<td style="padding:6px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;">'+fmt(e.valor)+'</td>';}
+// o form de edicao vira uma LINHA propria, senao estoura a coluna
+function _trEdit(a,ai){return (_concEdit===ai&&ai!==undefined&&a&&a.id)
+?'<tr><td colspan="9" style="padding:0 6px 6px;">'+_formEdit(a,ai)+'</td></tr>':'';}
+
 var html='';
 if(_concConferencia){
 html+='<div style="background:'+(_concConferencia.ok?'#1b5e20':'#b71c1c')+';border-radius:10px;padding:8px 10px;margin-bottom:10px;color:#fff;font-size:11px;text-align:center;">'+(_concConferencia.ok?'&#10003; ':'&#9888; ')+_escHtml(_concConferencia.msg)+'</div>';
@@ -1145,17 +1170,17 @@ html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center
 if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:800;margin-bottom:10px;">&#10003; Bateu no zero a zero!</div>';}
 var linhas='';
 sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
-linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;"><td style="padding:6px;vertical-align:top;">'+cApp(a,p.ai)+'</td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;">'+(p.moedaFix
+linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+(p.moedaFix
 ?'<button onclick="corrigirMoeda('+p.ai+','+p.ei+')" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#0d47a1;margin-top:3px;">compra em '+_escHtml(a.moeda)+' &mdash; o banco converteu</div>'
 :'<button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>')+'</td></tr>';});
 falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<option value="'+k+'">'+labelCategoria(k)+'</option>';}).join('');
-linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;"><td style="padding:6px;color:#b71c1c;text-align:center;vertical-align:middle;">&mdash;<div style="font-size:9px;">nao existe</div></td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;"><input id="nomefalta-'+o.i+'" value="'+_escHtml(capitalizarPrimeira(e.desc||''))+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;"><input id="nomefalta-'+o.i+'" value="'+_escHtml(capitalizarPrimeira(e.desc||''))+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
 sobra.forEach(function(o){var a=o.a;
-linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;"><td style="padding:6px;vertical-align:top;">'+cApp(a,o.i)+'</td><td style="padding:6px;color:#8d6e00;text-align:center;vertical-align:middle;">&mdash;<div style="font-size:9px;">nao esta na fatura</div></td><td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>';});
+linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>'+_trEdit(a,o.i);});
 if(_concMostrarOk){st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
-linhas+='<tr style="background:#f1f8e9;border-top:1px solid #e6e6e6;"><td style="padding:6px;vertical-align:top;">'+cApp(a,p.ai)+'</td><td style="padding:6px;vertical-align:top;">'+cExt(e)+'</td><td style="padding:6px;text-align:center;vertical-align:top;color:#2e7d32;font-weight:800;">&#10003;'+(Math.abs(d)>0.001?'<div style="font-size:9px;color:#c62828;font-weight:700;">ajusta '+(d>0?'+':'')+d.toFixed(2)+'</div>':'')+'</td></tr>';});}
+linhas+='<tr style="background:#f1f8e9;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;color:#2e7d32;font-weight:800;">&#10003;'+(Math.abs(d)>0.001?'<div style="font-size:9px;color:#c62828;font-weight:700;">ajusta '+(d>0?'+':'')+d.toFixed(2)+'</div>':'')+'</td></tr>'+_trEdit(a,p.ai);});}
 if(linhas){
-html+='<div style="background:#fff;border-radius:10px;overflow:hidden;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;font-size:11px;color:#333;table-layout:fixed;"><thead><tr style="background:#e8eaf6;"><th style="padding:6px;text-align:left;width:36%;">App</th><th style="padding:6px;text-align:left;width:36%;">Fatura do banco</th><th style="padding:6px;text-align:center;width:28%;">Acao</th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+html+='<div style="background:#fff;border-radius:10px;overflow:hidden;margin-bottom:10px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;color:#333;"><colgroup><col style="width:19%"><col style="width:7%"><col style="width:6%"><col style="width:10%"><col style="width:19%"><col style="width:7%"><col style="width:6%"><col style="width:10%"><col style="width:16%"></colgroup><thead><tr style="background:#e8eaf6;"><th style="padding:6px;text-align:left;">App</th><th style="padding:6px;text-align:left;">Data</th><th style="padding:6px;text-align:left;">Parc</th><th style="padding:6px;text-align:right;">Valor</th><th style="padding:6px;text-align:left;border-left:2px solid #c5cae9;">Fatura do banco</th><th style="padding:6px;text-align:left;">Data</th><th style="padding:6px;text-align:left;">Parc</th><th style="padding:6px;text-align:right;">Valor</th><th style="padding:6px;text-align:center;">Acao</th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
 }
 html+='<div style="display:flex;gap:6px;margin-bottom:10px;">';
 if(sug.length){html+='<button onclick="confirmarTodasSugestoes()" style="flex:1;background:#4CAF50;color:#fff;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:800;cursor:pointer;">&#10003; Confirmar todos ('+sug.length+')</button>';}
@@ -1174,7 +1199,7 @@ var faixa=_faixaDatas(gastosData);
 var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
 ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
-gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0),valorParcela=parcTotal>1?valorTotal/parcTotal:valorTotal;for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||''});}});
+gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var valorParcela=_valorParcela(valorTotal,parcTotal,parc);var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||''});}});
 var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
 function _prio(c){if(c.mesAno===_mesHoje)return 0;if(c.tipo==='atual')return 1;if(c.tipo==='futura')return 2;return 3;}
 var _ordenados=ciclos.slice().sort(function(a,b){var pa=_prio(a),pb=_prio(b);if(pa!==pb)return pa-pb;return String(b.mesAno).localeCompare(String(a.mesAno));});
