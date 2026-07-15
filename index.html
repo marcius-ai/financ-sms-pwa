@@ -246,7 +246,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v60';
+const APP_VERSION = 'v61';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -689,6 +689,9 @@ if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra
 texto=await _extrairTextoPDF(file);
 if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
 extrato=_parseFaturaTextoLocal(texto);
+_concConferencia=(extrato.conferencia&&extrato.conferencia.length)
+?{ok:false,msg:'Leitura NAO confere com o banco: '+extrato.conferencia.join('; ')}
+:(extrato.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco (R$ '+formatarValor(extrato.totalFatura)+')'}:null);
 if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
 if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
@@ -717,21 +720,32 @@ var reMesSo=/^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\.?$/i;
 var reDiaMesInline=/^(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\b/i;
 var reDataBarra=/^(\d{1,2})\/(\d{2})(?:\/\d{2,4})?\b/;
 // --- valores (NAO global: usado com .test/.match seguro)
-var reTemVal=/\d{1,3}(?:\.\d{3})*,\d{2}/;
-var reValG=/\d{1,3}(?:\.\d{3})*,\d{2}/g;
+// Captura o sinal: no PDF os pagamentos vem como "PAG BOLETO BANCARIO -13.103,48".
+// Sem o menos, pagamento virava compra e inflava a fatura.
+var reTemVal=/-?\d{1,3}(?:\.\d{3})*,\d{2}/;
+var reValG=/-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+// Do rodape em diante nao existe lancamento, so resumo e tabela de taxas
+// (que tem numeros como "1,990" e viravam R$ 1,99).
+var reRodape=/^(Resumo das Despesas|Total da fatura \(final|Taxas Mensais|\*?Extrato em Aberto)/i;
 var reParcParen=/\(\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)/;
 var reParcSolta=/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/;
 // --- linhas de resumo que NUNCA sao lancamento
-var ignorar=/(VALOR DA FATURA|TOTAL DA FATURA|FATURA ANTERIOR|TOTAL PARA|DATA DE VENCIMENTO|VALIDADE|MELHOR DATA|FORMA DE PAGAMENTO|COTA[CÇ][AÃ]O|MOEDA DE ORIGEM|N[AÃ]O POSSUI LAN|PAGAMENTO EFETUADO|PAGTO|SALDO ANTERIOR|ENCARGOS|JUROS|MULTA|SUBTOTAL|LIMITE|CARTAO SELECIONADO|CART[AÃ]O SELECIONADO|FATURA DATA|LAN[CÇ]AMENTOS MOEDA)/i;
-var grupos=[],g=null,cartaoAtual='',nomeAtual='';
+var ignorar=/(VALOR DA FATURA|TOTAL DA FATURA|FATURA ANTERIOR|TOTAL PARA|DATA DE VENCIMENTO|VALIDADE|MELHOR DATA|FORMA DE PAGAMENTO|COTA[CÇ][AÃ]O|MOEDA DE ORIGEM|N[AÃ]O POSSUI LAN|PAGAMENTO EFETUADO|PAGTO|PAG BOLETO|PAGAMENTOS?\s*\/|PAGAMENTO M[IÍ]NIMO|PAGAMENTO DE CONTAS|CR[EÉ]DITOS:|ESTORNO|DESPESAS LOCAIS|DESPESAS NO EXTERIOR|SALDO ANTERIOR|ENCARGOS|JUROS|MULTA|SUBTOTAL|LIMITE|CARTAO SELECIONADO|CART[AÃ]O SELECIONADO|FATURA DATA|LAN[CÇ]AMENTOS MOEDA)/i;
+var grupos=[],g=null,cartaoAtual='',nomeAtual='',fimLancamentos=false,totaisCartao={},pagos={};
+var rePagto=/(PAG BOLETO|PAGTO|PAGAMENTO EFETUADO|PAGAMENTOS?\s*\/|CR[EÉ]DITOS:)/i;
 function novoGrupo(dia,mes,mesNum){g={dia:dia,mes:mes||null,mesNum:mesNum||null,cartao:cartaoAtual,nome:nomeAtual,itens:[]};grupos.push(g);return g;}
 linhas.forEach(function(l){
-if(!l) return;
+if(!l||fimLancamentos) return;
+if(reRodape.test(l)){fimLancamentos=true;return;}
 // 1) CABECALHO DE SECAO DE CARTAO -> nunca e lancamento (mesmo com valor na linha)
 if(reSecGastos.test(l)||reSecFinal.test(l)){
 var mc=l.match(reSecFinal)||l.match(reFinalNum);
 if(mc){cartaoAtual=mc[1];}
 var mn=l.match(reNome); nomeAtual=mn?String(mn[1]).trim():'';
+// o cabecalho traz o total daquele cartao: "... Valor da fatura: R$ 7.976,47"
+// atencao ao sinal: vem antes do R$ -> "Valor da fatura: -R$ 12.093,90"
+var mt=l.match(/valor da fatura:?\s*(-?)\s*R\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+if(mt&&cartaoAtual)totaisCartao[cartaoAtual]=parseFloat(mt[2].replace(/\./g,'').replace(',','.'))*(mt[1]==='-'?-1:1);
 g=null;return;
 }
 // 2) numero de cartao mascarado sozinho
@@ -741,8 +755,16 @@ if(reDiaSo.test(l)){var d=parseInt(l,10);if(d>=1&&d<=31){novoGrupo(d,null,null);
 // 4) mes sozinho -> fecha a data do grupo aberto
 var mm=l.match(reMesSo);
 if(mm){if(g&&!g.mes&&!g.mesNum)g.mes=mm[1].toUpperCase();return;}
-// 5) linhas de resumo
-if(ignorar.test(l)) return;
+// 5) linhas de resumo. Pagamentos nao sao compra, mas o total que o banco
+// declara por cartao ja desconta eles -- entao guardo pra conferir depois.
+if(ignorar.test(l)){
+if(rePagto.test(l)&&cartaoAtual){
+var mv=l.match(reValG);
+if(mv){var vv=parseFloat(String(mv[mv.length-1]).replace(/\./g,'').replace(',','.'));
+if(vv<0)pagos[cartaoAtual]=(pagos[cartaoAtual]||0)+vv;}
+}
+return;
+}
 // 6) data inline
 var resto=l,inline=null;
 var mdi=l.match(reDiaMesInline);
@@ -773,6 +795,22 @@ if(!mesNum||!gr.dia) return;
 var data=_pad2(gr.dia)+'/'+mesNum;
 gr.itens.forEach(function(it){it.data=data;itens.push(it);});
 });
+// Confere a leitura contra os totais que o proprio PDF declara, igual no Excel.
+var mtf=String(texto||'').match(/\(=\)\s*Total da fatura:?\s*-?R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+itens.totalFatura=mtf?parseFloat(mtf[1].replace(/\./g,'').replace(',','.')):null;
+var conf=[];
+Object.keys(totaisCartao).forEach(function(c){
+var lst=itens.filter(function(x){return x.cartao===c;});
+if(!lst.length) return;
+var lido=lst.reduce(function(a,x){return a+x.valor;},0);
+var esperado=totaisCartao[c]-(pagos[c]||0);
+if(Math.abs(lido-esperado)>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+esperado.toFixed(2));
+});
+if(itens.totalFatura!=null){
+var soma=itens.reduce(function(a,x){return a+x.valor;},0);
+if(Math.abs(soma-itens.totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+', banco diz '+itens.totalFatura.toFixed(2));
+}
+itens.conferencia=conf;
 return itens;
 }
 function _inferirDataISO(ddmm,parcNum,mesAno){
