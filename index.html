@@ -237,7 +237,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div class="modal-title" id="concTitulo">Conciliar fatura</div>
 <div class="modal-sub">Suba a fatura do banco em <b>Excel (.xls)</b> ou PDF. Comparo por data e valor e mostro o que falta, o que sobra e a diferenca.</div>
 <label for="concFile" style="display:block;background:#3949ab;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;margin-bottom:4px;">&#128206; Escolher fatura (Excel ou PDF)</label>
-<div style="text-align:center;color:rgba(255,255,255,0.7);font-size:11px;margin-bottom:12px;">Prefira o <b>Excel</b> do app do banco: leitura exata. O PDF ainda erra.</div>
+<div style="text-align:center;color:rgba(255,255,255,0.7);font-size:11px;margin-bottom:12px;">Excel ou PDF: os dois s&atilde;o conferidos contra o total declarado pelo banco.</div>
 <input type="file" id="concFile" accept=".pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="rodarConciliacao()" style="display:none;" />
 <div id="concResultado"></div>
 </div>
@@ -246,7 +246,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v62';
+const APP_VERSION = 'v63';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -682,7 +682,7 @@ var xl=await _extrairFaturaXLS(file);
 texto=xl.texto;extrato=xl.itens;
 _concConferencia=(xl.conferencia&&xl.conferencia.length)
 ?{ok:false,msg:'Leitura NAO confere com o banco: '+xl.conferencia.join('; ')}
-:(xl.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco (R$ '+formatarValor(xl.totalFatura)+')'}:null);
+:(xl.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco ('+formatarValor(xl.totalFatura)+')'}:null);
 }else{
 _concConferencia=null;
 if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra o app.');
@@ -691,7 +691,7 @@ if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode
 extrato=_parseFaturaTextoLocal(texto);
 _concConferencia=(extrato.conferencia&&extrato.conferencia.length)
 ?{ok:false,msg:'Leitura NAO confere com o banco: '+extrato.conferencia.join('; ')}
-:(extrato.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco (R$ '+formatarValor(extrato.totalFatura)+')'}:null);
+:(extrato.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco ('+formatarValor(extrato.totalFatura)+')'}:null);
 if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
 if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
