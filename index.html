@@ -126,7 +126,9 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 @media print {
   @page { size:A4 portrait; margin:12mm; }
   body { background:#fff !important; }
-  .no-print, #appVersao, header, .hist-header { display:none !important; }
+  /* #toast: fixo e "escondido" so por translateY -- na impressao, elemento
+     fixo repete em TODA pagina e o aviso saia carimbado no PDF */
+  .no-print, #appVersao, header, .hist-header, #toast, .modal-overlay { display:none !important; }
   .rel-doc { max-width:none; border-radius:0; padding:0; font-size:10px; }
   /* nao cortar linha nem grupo no meio da quebra de pagina */
   table.rel-t { page-break-inside:auto; }
@@ -293,7 +295,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v74';
+const APP_VERSION = 'v75';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
