@@ -295,7 +295,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v75';
+const APP_VERSION = 'v76';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -402,14 +402,28 @@ q=q.toLowerCase().trim();
 var campos=[(g.apelido||''),(g.estabelecimento||''),(g.categoria||''),(g.data_compra||''),String(g.valor||''),String(g.valor||'').replace('.',',')];
 return campos.some(function(c){return String(c).toLowerCase().indexOf(q)>=0;});
 }
+// Em qual fatura este gasto cai, pelas MESMAS regras da aba Faturas
+// (_idxCicloParcela): parcelado mostra "Jul 26 > Set 26".
+function _faturaDoGasto(g,ciclos){
+if(!ciclos||!ciclos.length||!g.data_compra)return '';
+var i0=_idxCicloData(ciclos,g.data_compra);
+if(i0<0)return '';
+var pt=parseInt(g.parcelas_total||1)||1;
+if(pt<=1)return ciclos[i0].label;
+var iN=i0+pt-1;
+return ciclos[i0].label+(iN<ciclos.length?' &rsaquo; '+ciclos[iN].label:' &rsaquo; ...');
+}
 function renderHistorico(){
 var lista=document.getElementById('histList'); if(!lista) return;
 if(!_histData||_histData.length===0){lista.innerHTML='<div class="hist-loading">Nenhum gasto classificado ainda.</div>';return;}
 var q=(document.getElementById('histSearch')||{}).value||'';
+var _fA=localStorage.getItem('fechamento_atual')||'',_pA=localStorage.getItem('proximo_fechamento')||'';
+var _fx=_faixaDatas(_histData);
+var _cicH=_fA?gerarCiclos(_fA,_pA,_fx.min,_fx.max):[];
 var html=_histData.map(function(g,idx){return [g,idx];}).filter(function(p){return _matchHist(p[0],q);}).map(function(p){
 var g=p[0],idx=p[1];
 var nomeExib=nomeExibicao(g),catLabel=g.categoria||'?',moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG),dataFmt=formatarData(g.data_compra),horaFmt=formatarHora(g.hora_compra),hasApelido=g.apelido&&g.apelido.trim();
-return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div class="hist-item-cat">'+catLabel+'</div></div>';
+return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;"><div class="hist-item-cat">'+catLabel+'</div>'+(function(){var fl=_faturaDoGasto(g,_cicH);return fl?'<div style="font-size:9px;font-weight:700;color:#5c6bc0;background:rgba(92,107,192,0.12);border-radius:8px;padding:2px 7px;white-space:nowrap;">&#128196; '+fl+'</div>':'';})()+'</div></div>';
 }).join('');
 lista.innerHTML=html||'<div class="hist-loading">Nenhum resultado para "'+q+'".</div>';
 }
