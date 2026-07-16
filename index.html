@@ -293,7 +293,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v72';
+const APP_VERSION = 'v73';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -960,9 +960,13 @@ var conf=[];
 Object.keys(totaisCartao).forEach(function(c){
 var lst=itens.filter(function(x){return x.cartao===c;});
 if(!lst.length) return;
+// Cartao com pagamento no meio da secao: o "Valor da fatura" que o banco
+// declara mistura credito e a conta por cartao vira chute -- gerava alarme
+// vermelho numa conciliacao perfeita. A checagem que vale e a do total
+// geral logo abaixo, que nao depende disso.
+if(pagos[c]) return;
 var lido=lst.reduce(function(a,x){return a+x.valor;},0);
-var esperado=totaisCartao[c]-(pagos[c]||0);
-if(Math.abs(lido-esperado)>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+esperado.toFixed(2));
+if(Math.abs(lido-totaisCartao[c])>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+totaisCartao[c].toFixed(2));
 });
 if(itens.totalFatura!=null){
 var soma=itens.reduce(function(a,x){return a+x.valor;},0);
