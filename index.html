@@ -261,6 +261,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div class="modal-title" id="modalNome">-</div>
 <div class="modal-nome-orig" id="modalNomeOrig"></div>
 <div class="modal-sub" id="modalInfo">-</div>
+<div class="modal-apelido-wrap"><div class="modal-apelido-label">Fatura deste gasto</div><div class="modal-apelido-row"><select id="modalFaturaSelect" class="modal-apelido-input" style="flex:1;"></select><button class="btn-salvar-apelido" onclick="salvarFaturaModal()">Salvar</button></div></div>
 <div class="modal-apelido-wrap"><div class="modal-apelido-label">Apelido do estabelecimento</div><div class="modal-apelido-row"><input type="text" id="modalApelidoInput" class="modal-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" /><button class="btn-salvar-apelido" onclick="salvarApelidoModal()">Salvar</button></div></div>
 <div class="cat-grid">
 <button class="btn-cat alimentacao" onclick="reclassificar('alimentacao')">Alimentacao</button>
@@ -295,7 +296,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v76';
+const APP_VERSION = 'v77';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -381,8 +382,30 @@ showToast((apelidoInput||g.estabelecimento)+' -> '+cat,'success');
 indexAtual++; if(indexAtual<gastos.length) renderGasto(gastos[indexAtual]); else mostrarTela('screenVazio');
 }catch(e){showToast('Erro: '+e.message,'error');}
 }
+function _popularFaturaSelect(g){
+var sel=document.getElementById('modalFaturaSelect');if(!sel)return;
+var fA=localStorage.getItem('fechamento_atual')||'',pA=localStorage.getItem('proximo_fechamento')||'';
+var fx=_faixaDatas(_histData||[]);
+var cic=fA?gerarCiclos(fA,pA,fx.min,fx.max):[];
+var auto=_idxCicloData(cic,g.data_compra);
+var html='<option value="">Automatica (pela data'+(auto>=0?': '+cic[auto].label:'')+')</option>';
+cic.forEach(function(c){html+='<option value="'+c.mesAno+'"'+((g.fatura_override===c.mesAno)?' selected':'')+'>'+c.label+' &bull; fecha '+_ddmm(c.fechamento)+'</option>';});
+sel.innerHTML=html;
+}
+async function salvarFaturaModal(){
+if(!gastoSelecionadoId)return;
+var sel=document.getElementById('modalFaturaSelect');var v=sel?sel.value:'';
+try{
+var r=await fetch(API+'/gastos/'+gastoSelecionadoId+'/fatura',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mes_ano:v||null})});
+if(!r.ok)throw new Error('HTTP '+r.status);
+showToast(v?'Gasto fixado nessa fatura':'Voltou pra fatura automatica (pela data)','success');
+document.getElementById('modalReclass').classList.add('hidden');
+await abrirHistorico();
+}catch(e){showToast('Erro: '+e.message,'error');}
+}
 function clicarHistItem(idx) {
 var g=_histData[idx]; if(!g) return;
+_popularFaturaSelect(g);
 var nomeExib=nomeExibicao(g),moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG);
 abrirReclass(g.id,nomeExib,g.categoria||'?',valorFmt,g.estabelecimento||'',g.apelido||'');
 }
@@ -406,12 +429,15 @@ return campos.some(function(c){return String(c).toLowerCase().indexOf(q)>=0;});
 // (_idxCicloParcela): parcelado mostra "Jul 26 > Set 26".
 function _faturaDoGasto(g,ciclos){
 if(!ciclos||!ciclos.length||!g.data_compra)return '';
-var i0=_idxCicloData(ciclos,g.data_compra);
+var i0=-1;
+if(g.fatura_override){for(var k=0;k<ciclos.length;k++){if(ciclos[k].mesAno===g.fatura_override){i0=k;break;}}}
+if(i0<0)i0=_idxCicloData(ciclos,g.data_compra);
 if(i0<0)return '';
+var pin=g.fatura_override?'&#128204; ':'';
 var pt=parseInt(g.parcelas_total||1)||1;
-if(pt<=1)return ciclos[i0].label;
+if(pt<=1)return pin+ciclos[i0].label;
 var iN=i0+pt-1;
-return ciclos[i0].label+(iN<ciclos.length?' &rsaquo; '+ciclos[iN].label:' &rsaquo; ...');
+return pin+ciclos[i0].label+(iN<ciclos.length?' &rsaquo; '+ciclos[iN].label:' &rsaquo; ...');
 }
 function renderHistorico(){
 var lista=document.getElementById('histList'); if(!lista) return;
@@ -525,8 +551,13 @@ var cents=Math.round(total*100),base=Math.floor(cents/pt),resto=cents-base*pt;
 return (base+((p<=resto)?1:0))/100;
 }
 function _idxCicloData(ciclos,iso){for(var i=0;i<ciclos.length;i++){if(iso>=ciclos[i].inicio&&iso<=ciclos[i].fechamento)return i;}return -1;}
-function _idxCicloParcela(ciclos,dataCompra,p){
-var i0=_idxCicloData(ciclos,dataCompra);
+function _idxCicloParcela(ciclos,dataCompra,p,ovr){
+// ovr = fatura_override (mesAno "2026-07"): o usuario fixou o gasto numa
+// fatura especifica; a 1a parcela ancora la e as demais seguem. Sem
+// override (ou override fora do intervalo gerado), vale a data.
+var i0=-1;
+if(ovr){for(var k=0;k<ciclos.length;k++){if(ciclos[k].mesAno===ovr){i0=k;break;}}}
+if(i0<0)i0=_idxCicloData(ciclos,dataCompra);
 if(i0<0)return -1;
 var i=i0+(p-1);
 return (i>=0&&i<ciclos.length)?i:-1;
@@ -544,7 +575,7 @@ estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.es
 vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1;
 for(var p=1;p<=pt;p++){
 var vp=_valorParcela(vt,pt,p);
-var _ci=_idxCicloParcela(ciclos,g.data_compra,p);
+var _ci=_idxCicloParcela(ciclos,g.data_compra,p,g.fatura_override);
 if(_ci>=0){
 var c=ciclos[_ci];
 c.cats[cat]=(c.cats[cat]||0)+vp;
@@ -1267,7 +1298,7 @@ var faixa=_faixaDatas(gastosData);
 var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
 ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
-gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var valorParcela=_valorParcela(valorTotal,parcTotal,parc);var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||''});}});
+gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var valorParcela=_valorParcela(valorTotal,parcTotal,parc);var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc,g.fatura_override);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||''});}});
 var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
 function _prio(c){if(c.mesAno===_mesHoje)return 0;if(c.tipo==='atual')return 1;if(c.tipo==='futura')return 2;return 3;}
 var _ordenados=ciclos.slice().sort(function(a,b){var pa=_prio(a),pb=_prio(b);if(pa!==pb)return pa-pb;return String(b.mesAno).localeCompare(String(a.mesAno));});
