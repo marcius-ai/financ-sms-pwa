@@ -92,6 +92,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .modal-apelido-label { color:rgba(255,255,255,0.7); font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
 .modal-apelido-row { display:flex; gap:8px; align-items:center; }
 .modal-apelido-input { flex:1; background:rgba(255,255,255,0.15); color:#fff; border:1.5px solid rgba(255,255,255,0.3); border-radius:10px; padding:8px 12px; font-size:14px; outline:none; }
+/* a lista aberta do <select> tem fundo branco do sistema: sem isso, a
+   letra herdada (#fff) some no branco */
+#modalFaturaSelect option { color:#222; background:#fff; }
 .modal-apelido-input::placeholder { color:rgba(255,255,255,0.4); }
 .modal-apelido-input:focus { border-color:#fff; }
 .btn-salvar-apelido { background:#4CAF50; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
@@ -296,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v77';
+const APP_VERSION = 'v78';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
