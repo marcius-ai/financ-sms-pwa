@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v79';
+const APP_VERSION = 'v80';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -406,6 +406,19 @@ document.getElementById('modalReclass').classList.add('hidden');
 await abrirHistorico();
 }catch(e){showToast('Erro: '+e.message,'error');}
 }
+async function excluirHistItem(idx,ev){
+if(ev)ev.stopPropagation(); // o toque na lixeira nao pode abrir o modal do item
+var g=_histData[idx];if(!g)return;
+var desc=nomeExibicao(g)+' - '+formatarValor(g.valor,extrairMoeda(g.mensagem_original))+' ('+formatarData(g.data_compra)+')';
+if(!confirm('Tem certeza que deseja excluir este lancamento?\n\n'+desc))return;
+try{
+var r=await fetch(API+'/gastos/'+g.id,{method:'DELETE'});
+if(!r.ok)throw new Error('HTTP '+r.status);
+_histData.splice(idx,1);
+renderHistorico();
+showToast('Lancamento excluido','success');
+}catch(e){showToast('Erro ao excluir: '+e.message,'error');}
+}
 function clicarHistItem(idx) {
 var g=_histData[idx]; if(!g) return;
 _popularFaturaSelect(g);
@@ -463,7 +476,7 @@ var _cicH=_fA?gerarCiclos(_fA,_pA,_fx.min,_fx.max):[];
 var html=_histData.map(function(g,idx){return [g,idx];}).filter(function(p){return _matchHist(p[0],q,_cicH);}).map(function(p){
 var g=p[0],idx=p[1];
 var nomeExib=nomeExibicao(g),catLabel=g.categoria||'?',moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG),dataFmt=formatarData(g.data_compra),horaFmt=formatarHora(g.hora_compra),hasApelido=g.apelido&&g.apelido.trim();
-return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;"><div class="hist-item-cat">'+catLabel+'</div>'+(function(){var fl=_faturaDoGasto(g,_cicH);return fl?'<div style="font-size:9px;font-weight:700;color:#5c6bc0;background:rgba(92,107,192,0.12);border-radius:8px;padding:2px 7px;white-space:nowrap;">&#128196; '+fl+'</div>':'';})()+'</div></div>';
+return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;"><div class="hist-item-cat">'+catLabel+'</div>'+(function(){var fl=_faturaDoGasto(g,_cicH);return fl?'<div style="font-size:9px;font-weight:700;color:#5c6bc0;background:rgba(92,107,192,0.12);border-radius:8px;padding:2px 7px;white-space:nowrap;">&#128196; '+fl+'</div>':'';})()+'<button onclick="excluirHistItem('+idx+',event)" title="Excluir lancamento" style="background:none;border:none;cursor:pointer;font-size:14px;opacity:.55;padding:2px 4px;">&#128465;</button></div></div>';
 }).join('');
 lista.innerHTML=html||'<div class="hist-loading">Nenhum resultado para "'+q+'".</div>';
 }
