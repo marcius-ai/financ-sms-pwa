@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v82';
+const APP_VERSION = 'v83';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -346,7 +346,7 @@ var apelido=(g.apelido&&g.apelido.trim())?g.apelido.trim():'', nomeOrig=g.estabe
 document.getElementById('gastoEstabelecimento').textContent=apelido||capitalizarPrimeira(nomeOrig);
 var origEl=document.getElementById('gastoNomeOrig');
 if(apelido){origEl.textContent=nomeOrig;origEl.style.display='';}else{origEl.textContent='';origEl.style.display='none';}
-document.getElementById('gastoApelidoInput').value=apelido||_sugerirNome(nomeOrig);
+document.getElementById('gastoApelidoInput').value=apelido||(g.apelido_sugerido&&g.apelido_sugerido.trim())||_sugerirNome(nomeOrig);
 document.getElementById('gastoValor').textContent=formatarValor(g.valor,extrairMoeda(g.mensagem_original));
 document.getElementById('gastoData').textContent=formatarData(g.data_compra);
 document.getElementById('gastoHora').textContent=formatarHora(g.hora_compra);
