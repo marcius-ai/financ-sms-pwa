@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v88';
+const APP_VERSION = 'v89';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -759,7 +759,7 @@ async function editarValor(id,valorAtual){var novoStr=prompt('Novo valor (R$):',
 async function moverFatura(gastoId,cicloIdx){var c=_faturasCiclos[cicloIdx];if(!c) return;var mesAtual=c.mesAno,parts=mesAtual.split('-'),ano=parseInt(parts[0]),mes=parseInt(parts[1]),mesAnt=mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0'),mesProx=mes===12?(ano+1)+'-01':ano+'-'+String(mes+1).padStart(2,'0'),escolha=confirm('Mover para qual fatura? OK=Anterior ('+mesAnt+') Cancelar=Proxima ('+mesProx+')'),novoMes=escolha?mesAnt:mesProx;try{var r=await fetch(API+'/gastos/'+gastoId+'/fatura',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mes_ano:novoMes})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao mover: '+e.message);}}
 function toggleAddForm(formId){var el=document.getElementById(formId);if(el) el.classList.toggle('visible');}
 var _conciliarCiclo=null;
-function abrirConciliacaoGraf(){if(!_grafFatura){showToast('Selecione um mes','error');return;}_conciliarCiclo={label:_grafFatura.labelFull||_grafFatura.label,mesAno:_grafFatura.mesAno||'',itens:_grafFatura.itens||[]};document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
+function abrirConciliacaoGraf(){if(!_grafFatura){showToast('Selecione um mes','error');return;}_conciliarCiclo={label:_grafFatura.labelFull||_grafFatura.label,mesAno:_grafFatura.mesAno||'',inicio:_grafFatura.inicio||'',fechamento:_grafFatura.fechamento||'',itens:_grafFatura.itens||[]};document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
 function abrirConciliacao(cicloIdx){_conciliarCiclo=_faturasCiclos[cicloIdx]||null;if(!_conciliarCiclo){showToast('Fatura nao encontrada','error');return;}document.getElementById('concTitulo').textContent='Conciliar '+(_conciliarCiclo.label||'fatura');document.getElementById('concResultado').innerHTML='';var f=document.getElementById('concFile');if(f)f.value='';document.getElementById('modalConciliar').classList.remove('hidden');}
 
 // ================= RELATORIO DA FATURA =================
