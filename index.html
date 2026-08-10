@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v92';
+const APP_VERSION = 'v93';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -693,10 +693,14 @@ var c0=document.getElementById('canvasGraf');if(c0)c0.parentElement.innerHTML='<
 if(gh)gh.textContent='';
 return;
 }
-var totalGeral=meses.reduce(function(s,c){return s+(c.total||0);},0),nConc=meses.filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).length;
-if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Comparativo &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' &bull; '+nConc+' conciliada'+(nConc!==1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
+// So gastos pessoais entram no comparativo -- empresa fica de fora (mesmo
+// criterio do resto do app: card de Faturas e Grafico por Categoria ja
+// excluem 'empresa' do que e "seu" gasto).
+function _pessoal(c){return (c.total||0)-((c.cats&&c.cats.empresa)||0);}
+var totalGeral=meses.reduce(function(s,c){return s+_pessoal(c);},0),nConc=meses.filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).length;
+if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Comparativo (pessoais) &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' &bull; '+nConc+' conciliada'+(nConc!==1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
 var totalPorCat={};
-meses.forEach(function(c){Object.keys(c.cats||{}).forEach(function(k){totalPorCat[k]=(totalPorCat[k]||0)+c.cats[k];});});
+meses.forEach(function(c){Object.keys(c.cats||{}).forEach(function(k){if(k==='empresa')return;totalPorCat[k]=(totalPorCat[k]||0)+c.cats[k];});});
 var catsOrdenadas=Object.keys(totalPorCat).sort(function(a,b){return totalPorCat[b]-totalPorCat[a];});
 var labels=meses.map(function(c){return (_faturasFechadas.indexOf(c.mesAno)>=0)?[c.label,'✓ conciliado']:[c.label];});
 var datasets=catsOrdenadas.map(function(cat){return {label:labelCategoria(cat),data:meses.map(function(c){return Number((c.cats[cat]||0).toFixed(2));}),backgroundColor:CORES_CAT[cat]||'#9E9E9E',borderRadius:2,barPercentage:0.92,categoryPercentage:0.94};});
@@ -727,7 +731,7 @@ c.fillText(txt,p.x,(p.y+p.base)/2);
 var ultimo=chart.getDatasetMeta(chart.data.datasets.length-1);
 c.font='bold 12px sans-serif';c.fillStyle='#333';c.textAlign='center';c.textBaseline='bottom';
 ultimo.data.forEach(function(bar,i){
-var t=meses[i]&&meses[i].total||0;
+var t=meses[i]?_pessoal(meses[i]):0;
 var p=bar.getProps(['x','y'],true);
 c.fillText('R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),p.x,p.y-6);
 });
