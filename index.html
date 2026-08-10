@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v91';
+const APP_VERSION = 'v92';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -686,7 +686,7 @@ if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
 // Todos os meses com algum gasto entram -- nao so os selados. Fatura aberta
 // ainda pode mudar de composicao, entao marca com check quem ja fechou e
 // conciliou (_faturasFechadas) em vez de escondida da lista.
-var meses=(_faturasDados||[]).filter(function(c){return (c.total||0)>0.004&&c.tipo!=='futura';}).sort(function(a,b){return String(a.mesAno).localeCompare(String(b.mesAno));});
+var meses=(_faturasDados||[]).filter(function(c){return (c.total||0)>0.004&&c.tipo!=='futura'&&c.mesAno>='2026-07';}).sort(function(a,b){return String(a.mesAno).localeCompare(String(b.mesAno));});
 if(meses.length===0){
 if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;">Comparativo entre faturas</div>';
 var c0=document.getElementById('canvasGraf');if(c0)c0.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhum dado ainda.</div>';
