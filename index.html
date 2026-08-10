@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v86';
+const APP_VERSION = 'v87';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -967,8 +967,56 @@ _aplicarFiltroCartao();
 }
 var _MESES_ABR={JAN:'01',FEV:'02',MAR:'03',ABR:'04',MAI:'05',JUN:'06',JUL:'07',AGO:'08',SET:'09',OUT:'10',NOV:'11',DEZ:'12'};
 function _pad2(n){n=String(parseInt(n,10)||0);return n.length<2?('0'+n):n;}
+// Parser da Fatura Mensal oficial (formato com boleto, visto em ago/2026).
+// Layout de 2 colunas: limites, taxas e Livelo se misturam aos lancamentos
+// na extracao ("Compras R$ 130.000,00" e o LIMITE, nao compra). Nela SO
+// vale linha que comeca com DD/MM e tem valor; pagamento vem com "-"
+// DEPOIS do valor; parcela no meio ("MP MERCADOLIVRE 02/03 OSASCO").
+function _parseFaturaMensal(linhas,texto){
+var reCart=/Cart[aã]o\s+\d{4}\s+X{4}\s+X{4}\s+(\d{4})/i;
+var reData=/^(\d{2})\/(\d{2})\s+/;
+var reVal=/\d{1,3}(?:\.\d{3})*,\d{2}(?!\s*%)(?!\d)/g;
+var reParcM=/\b(\d{1,2})\/(\d{1,2})\b/;
+var reIgn=/(PAG BOLETO|PAGTO|PAGAMENTO EFETUADO|SALDO ANTERIOR|ESTORNO|CR[EÉ]DITO DE)/i;
+var itens=[],cartao='';
+linhas.forEach(function(l){
+if(!l)return;
+var mc=l.match(reCart);
+if(mc){cartao=mc[1];return;}
+if(/^\d{2}\/\d{2}\/\d{2,4}/.test(l))return; // data com ano = linha de boleto
+var md=l.match(reData);
+if(!md)return; // sem data no inicio: coluna lateral, resumo, boleto
+var resto=l.replace(md[0],'');
+if(reIgn.test(resto))return;
+var vals=resto.match(reVal);
+if(!vals||!vals.length)return;
+var valStr=vals[vals.length-1];
+var idx=resto.lastIndexOf(valStr);
+if(/^\s*-/.test(resto.slice(idx+valStr.length)))return; // "13.103,48 -" = pagamento
+var valor=parseFloat(valStr.replace(/\./g,'').replace(',','.'));
+if(!valor||valor<=0)return;
+var desc=resto.slice(0,idx).trim();
+var parc='';
+var mp=desc.match(reParcM);
+if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);desc=desc.replace(mp[0],' ').replace(/\s+/g,' ').trim();}
+desc=desc.replace(/\bUSD\b.*$/i,'').trim();
+itens.push({data:md[1]+'/'+md[2],valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:cartao,nome:''});
+});
+var mt=String(texto||'').match(/\(\+\)\s*Compras\/D[eé]bitos\.*\s*R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+itens.totalFatura=mt?parseFloat(mt[1].replace(/\./g,'').replace(',','.')):null;
+var conf=[];
+if(itens.totalFatura!=null){
+var soma=itens.reduce(function(a,x){return a+x.valor;},0);
+if(Math.abs(soma-itens.totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+', banco diz '+itens.totalFatura.toFixed(2));
+}
+itens.conferencia=conf;
+return itens;
+}
 function _parseFaturaTextoLocal(texto){
 var linhas=String(texto||'').split('\n').map(function(s){return String(s||'').replace(/\s+/g,' ').trim();});
+if(/Hist[oó]rico de Lan[cç]amentos/i.test(texto)&&/N[uú]mero do Cart[aã]o/i.test(texto)){
+return _parseFaturaMensal(linhas,texto);
+}
 // --- cabecalho de secao de cartao (SEMPRE tratado como cabecalho, mesmo tendo valor)
 var reSecGastos=/gastos?\s+referentes?\s+ao\s+cart[aã]o/i;
 var reSecFinal=/\bfinal\s*(\d{4})\s*\|/i;
