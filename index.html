@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v90';
+const APP_VERSION = 'v91';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -683,24 +683,57 @@ var tb=document.getElementById('graf-total');
 var dn=document.getElementById('drillNav');if(dn)dn.style.display='none';
 var gh=document.getElementById('graf-hint');
 if(_chartAtivo){_chartAtivo.destroy();_chartAtivo=null;}
-var meses=(_faturasDados||[]).filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).sort(function(a,b){return String(a.mesAno).localeCompare(String(b.mesAno));});
+// Todos os meses com algum gasto entram -- nao so os selados. Fatura aberta
+// ainda pode mudar de composicao, entao marca com check quem ja fechou e
+// conciliou (_faturasFechadas) em vez de escondida da lista.
+var meses=(_faturasDados||[]).filter(function(c){return (c.total||0)>0.004&&c.tipo!=='futura';}).sort(function(a,b){return String(a.mesAno).localeCompare(String(b.mesAno));});
 if(meses.length===0){
 if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;">Comparativo entre faturas</div>';
-var c0=document.getElementById('canvasGraf');if(c0)c0.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhuma fatura fechada e conciliada ainda. O comparativo aparece a partir da 1a fatura selada.</div>';
+var c0=document.getElementById('canvasGraf');if(c0)c0.parentElement.innerHTML='<div style="color:#999;text-align:center;padding:24px;font-size:13px;">Nenhum dado ainda.</div>';
 if(gh)gh.textContent='';
 return;
 }
-var totalGeral=meses.reduce(function(s,c){return s+(c.total||0);},0);
-if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Comparativo &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' fechada'+(meses.length>1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
+var totalGeral=meses.reduce(function(s,c){return s+(c.total||0);},0),nConc=meses.filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).length;
+if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Comparativo &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' &bull; '+nConc+' conciliada'+(nConc!==1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+totalGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>';
 var totalPorCat={};
 meses.forEach(function(c){Object.keys(c.cats||{}).forEach(function(k){totalPorCat[k]=(totalPorCat[k]||0)+c.cats[k];});});
 var catsOrdenadas=Object.keys(totalPorCat).sort(function(a,b){return totalPorCat[b]-totalPorCat[a];});
-var labels=meses.map(function(c){return c.label;});
-var datasets=catsOrdenadas.map(function(cat){return {label:labelCategoria(cat),data:meses.map(function(c){return Number((c.cats[cat]||0).toFixed(2));}),backgroundColor:CORES_CAT[cat]||'#9E9E9E',borderRadius:2};});
+var labels=meses.map(function(c){return (_faturasFechadas.indexOf(c.mesAno)>=0)?[c.label,'✓ conciliado']:[c.label];});
+var datasets=catsOrdenadas.map(function(cat){return {label:labelCategoria(cat),data:meses.map(function(c){return Number((c.cats[cat]||0).toFixed(2));}),backgroundColor:CORES_CAT[cat]||'#9E9E9E',borderRadius:2,barPercentage:0.92,categoryPercentage:0.94};});
 var ctx=document.getElementById('canvasGraf');if(!ctx)return;
 ctx.parentElement.style.height='340px';
-if(gh)gh.textContent=meses.length<3?'Cresce conforme voce sela as proximas faturas':'';
-_chartAtivo=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:11,weight:'700'}}},y:{stacked:true,grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#777',font:{size:10},callback:function(v){return 'R$ '+v.toLocaleString('pt-BR');}}}}}});
+if(gh)gh.textContent='✓ = fatura fechada e conciliada com o banco; sem check = ainda em aberto (pode mudar)';
+// Sem eixo Y (numeros ja vao dentro/acima das barras): rotulo por segmento
+// SO se couber (altura e largura do pedaco), e o total no topo da coluna.
+var lblPlugin={id:'compLbl',afterDatasetsDraw:function(chart){
+// bar.y/bar.base direto podem ficar com o valor da posicao inicial da
+// animacao (colapsada no zero) dependendo do momento da leitura -- getProps
+// com final=true garante a posicao real, atual ou pos-animacao.
+var c=chart.ctx;c.save();
+chart.data.datasets.forEach(function(ds,di){
+var meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+meta.data.forEach(function(bar,i){
+var val=ds.data[i];if(!val)return;
+var p=bar.getProps(['x','y','base','width'],true);
+var h=Math.abs((p.base||0)-(p.y||0));
+if(h<14)return;
+var txt=Math.round(val).toLocaleString('pt-BR');
+c.font='bold 9px sans-serif';
+if(c.measureText(txt).width>p.width-3)return;
+c.fillStyle='#fff';c.textAlign='center';c.textBaseline='middle';
+c.fillText(txt,p.x,(p.y+p.base)/2);
+});
+});
+var ultimo=chart.getDatasetMeta(chart.data.datasets.length-1);
+c.font='bold 12px sans-serif';c.fillStyle='#333';c.textAlign='center';c.textBaseline='bottom';
+ultimo.data.forEach(function(bar,i){
+var t=meses[i]&&meses[i].total||0;
+var p=bar.getProps(['x','y'],true);
+c.fillText('R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),p.x,p.y-6);
+});
+c.restore();
+}};
+_chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:24}},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:11,weight:'700'}}},y:{stacked:true,display:false,grid:{display:false}}}}});
 }
 function voltarCategorias(){_grafDrillCat=null;renderGraficoAtivo();}
 function renderResumoFatura(f){var el=document.getElementById('resumoFatura');if(!el)return;if(!f){el.innerHTML='';return;}var tB=f.total||0,tE=(f.cats&&f.cats.empresa)||0,tP=tB-tE,pct=tB>0?Math.round(tE/tB*100):0;el.innerHTML='<div style="background:rgba(255,255,255,0.08);border-radius:16px;padding:16px;margin-top:16px;width:100%;max-width:480px;"><div style="font-size:13px;font-weight:800;color:rgba(255,255,255,0.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Resumo da Fatura &mdash; '+f.labelFull+'</div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#a5d6a7;font-size:15px;font-weight:700;">Gastos Pessoais</span><span style="color:#a5d6a7;font-size:18px;font-weight:900;">R$ '+tP.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#ef9a9a;font-size:13px;">(+) Empresa</span><span style="color:#ef9a9a;font-weight:700;">R$ '+tE.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:12px;border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;"><span style="color:#fff;font-size:15px;font-weight:700;">= Fatura (total)</span><span style="color:#fff;font-size:18px;font-weight:900;">R$ '+tB.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="background:rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;height:28px;display:flex;margin-bottom:4px;"><div style="background:#ef9a9a;height:100%;width:'+pct+'%;min-width:'+(tE>0?2:0)+'px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#7f1010;font-weight:700;">'+(pct>12?pct+"% Empresa":"")+'</div><div style="background:#a5d6a7;height:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#1a237e;font-weight:700;">'+(pct<88?(100-pct)+"% Pessoal":"")+'</div></div><div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#ef9a9a;">Empresa '+pct+'%</span><span style="font-size:11px;color:#a5d6a7;">Pessoal '+(100-pct)+'%</span></div></div>';}
