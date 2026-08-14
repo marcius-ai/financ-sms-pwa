@@ -224,7 +224,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
 <button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
 <button class="btn-cat mercado" onclick="confirmarCategoria('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Mobilidade</button>
+<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Deslocamento</button>
 <button class="btn-cat presentes" onclick="confirmarCategoria('presentes')">Presentes</button>
 <button class="btn-cat reembolsavel" onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
 <button class="btn-cat saude" onclick="confirmarCategoria('saude')">Saude</button>
@@ -275,7 +275,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
 <button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
 <button class="btn-cat mercado" onclick="reclassificar('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Mobilidade</button>
+<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Deslocamento</button>
 <button class="btn-cat presentes" onclick="reclassificar('presentes')">Presentes</button>
 <button class="btn-cat reembolsavel" onclick="reclassificar('reembolsavel')">Reembolsavel</button>
 <button class="btn-cat saude" onclick="reclassificar('saude')">Saude</button>
@@ -299,13 +299,13 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v94';
+const APP_VERSION = 'v95';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
 const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
 const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1','#d81b60','#6d4c41','#546e7a','#c0ca33','#00897b','#f4511e','#1e88e5','#7cb342','#fdd835'];
-const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',ativos:'Ativos',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Mobilidade',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
+const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',ativos:'Ativos',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Deslocamento',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
 function labelCategoria(cat){return CAT_LABELS[cat]||capitalizarPrimeira(cat||'');}
 var CAT_KEYS=['alimentacao','assinaturas','ativos','bares','caridade','empresa','entretenimento','mercado','mobilidade','presentes','reembolsavel','saude','servicos','vestuario'];
@@ -313,6 +313,7 @@ function normalizarCategoria(c){
 if(!c) return '';
 c=String(c).toLowerCase().trim();
 if(c.indexOf('bares')>=0||c.indexOf('restaur')>=0) return 'bares';
+if(c.indexOf('deslocamento')>=0||c.indexOf('mobilidade')>=0) return 'mobilidade';
 if(CAT_KEYS.indexOf(c)>=0) return c;
 for(var i=0;i<CAT_KEYS.length;i++){if(c.indexOf(CAT_KEYS[i])>=0||CAT_KEYS[i].indexOf(c)>=0) return CAT_KEYS[i];}
 return '';
