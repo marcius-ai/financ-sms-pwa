@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v98';
+const APP_VERSION = 'v99';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1448,6 +1448,25 @@ showToast('Ajustado: '+_fmtC(e.valor),'success');
 _desenharConciliacao();
 }catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
+// Gasto "so no app" (nao aparece na fatura do banco) direto da tela de
+// conciliacao -- antes so dava pra excluir saindo do modal e caçando o
+// lancamento na lista da fatura. Marca usado=true em vez de tirar do
+// array: os pares ja confirmados guardam INDICE dentro de st.app, remover
+// de verdade desalinharia todo mundo depois do item excluido.
+async function excluirSobra(ai,btn){
+var st=_concEstado;if(!st)return;
+var a=st.app[ai];if(!a||!a.id)return;
+if(!confirm('Excluir "'+a.nome+'" ('+_fmtC(a.valor)+')? Esse lancamento nao esta na fatura do banco.'))return;
+_flashLinha(btn);
+try{
+var r=await fetch(API+'/gastos/'+a.id,{method:'DELETE'});
+if(!r.ok)throw new Error('HTTP '+r.status);
+a.usado=true;
+showToast('Excluido','success');
+_desenharConciliacao();
+carregarFaturas(document.getElementById('inputFechamento').value);
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
+}
 function preencherValor(ai,v){var el=document.getElementById('ed-valor-'+ai);if(el){el.value=Number(v).toFixed(2);}}
 function _formEdit(a,ai){
 var opts='';
@@ -1581,7 +1600,7 @@ var dicaIof=ehIof?'<div style="font-size:9px;color:#8d6e00;margin-bottom:4px;">&
 linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
 if(sobra.length)linhas+=_secHead('&#128993;','S&oacute; no app','#8d6e00',sobra.length);
 sobra.forEach(function(o){var a=o.a;
-linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>'+_trEdit(a,o.i);});
+linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+(a.id?'<button onclick="excluirSobra('+o.i+',this)" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128465; Excluir</button>':'')+'<div style="font-size:9px;color:#8d6e00;margin-top:3px;">so no app<br>(duplicado?)</div></td></tr>'+_trEdit(a,o.i);});
 if(_concMostrarOk){linhas+=_secHead('&#9989;','Conciliados','#2e7d32',st.pares.length);st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
 linhas+='<tr style="background:#f1f8e9;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;color:#2e7d32;font-weight:800;">&#10003;'+(Math.abs(d)>0.001&&a.id?'<button onclick="ajustarValorPar('+p.ai+','+p.ei+',this)" style="display:block;margin:3px auto 0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">Ajustar '+(d>0?'+':'')+d.toFixed(2)+'</button>':'')+'</td></tr>'+_trEdit(a,p.ai);});}
 if(linhas){
