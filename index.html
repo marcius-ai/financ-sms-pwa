@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v95';
+const APP_VERSION = 'v96';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1260,6 +1260,16 @@ function _calcSugestoes(){var st=_concEstado,s=[];if(!st)return[];
 st.app.forEach(function(a,ai){if(a.usado||a.moeda==='BRL')return;st.ext.forEach(function(e,ei){if(e.usado)return;
 var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));
 if(sim>=0.5&&dd<=3)s.push({ai:ai,ei:ei,dd:dd,sim:sim,moedaFix:true,score:100+sim});});});
+// Parcela com IOF/encargo que o SMS nao capturou: o banco cobra um pouco a
+// mais numa parcela (geralmente a 1a) e isso NAO e o centavo de arredondamento
+// (esse ja e tratado por _valorParcela) -- e um valor real a mais que so
+// aparece na fatura. Sem isso o usuario tinha que excluir o lancamento do
+// app e incluir de novo a partir da fatura. Casa por nome+data com folga
+// maior que o match exato, mas so oferece -- nunca aplica sozinho.
+st.app.forEach(function(a,ai){if(a.usado||a.moeda!=='BRL'||!(a.parcTot>1))return;st.ext.forEach(function(e,ei){if(e.usado)return;
+var diff=Math.abs(a.valor-e.valor);if(diff<=0.02||diff>Math.max(1,a.valor*0.05))return;
+var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));
+if(sim>=0.6&&dd<=3)s.push({ai:ai,ei:ei,dd:dd,sim:sim,parcFix:true,score:50+sim});});});
 st.app.forEach(function(a,ai){if(a.usado)return;st.ext.forEach(function(e,ei){if(e.usado)return;if(Math.abs(a.valor-e.valor)>0.02)return;var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));if(dd>60&&sim<0.3)return;s.push({ai:ai,ei:ei,dd:dd,sim:sim,score:sim*2-(dd*0.01)});});});s.sort(function(x,y){return y.score-x.score;});var ua={},ue={},out=[];s.forEach(function(p){if(ua[p.ai]||ue[p.ei])return;ua[p.ai]=1;ue[p.ei]=1;out.push(p);});return out;}
 function _isoDoExtrato(a,e){var parcNum=1;if(e.parc){var pp=String(e.parc).split('/');parcNum=parseInt(pp[0])||1;}else if(a.parc){var pa=String(a.parc).split('/');parcNum=parseInt(pa[0])||1;}return _inferirDataISO(e.data,parcNum,(_conciliarCiclo&&_conciliarCiclo.mesAno)||'');}
 function _chaveConc(a){return 'conc:'+(_conciliarCiclo&&_conciliarCiclo.mesAno||'')+':'+(a.id||'');}
@@ -1288,6 +1298,28 @@ if(!r.ok)throw new Error('HTTP '+r.status);
 a.valor=e.valor;a.moeda='BRL';a.usado=true;e.usado=true;
 st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
 showToast('Valor corrigido para '+_fmtC(alvo),'success');
+_desenharConciliacao();
+}catch(err){showToast('Erro: '+err.message,'error');}
+}
+// Igual corrigirMoeda, mas pra IOF/encargo de parcelamento que o SMS nao
+// capturou: usa _totalQueFecha pra achar o total que faz ESTA parcela bater
+// com o banco respeitando a distribuicao de centavos das outras parcelas
+// (senao "consertar" o total quebraria as parcelas ja lancadas).
+async function corrigirValorParc(ai,ei){
+var st=_concEstado;if(!st)return;
+var a=st.app[ai],e=st.ext[ei];
+if(!a||!e||a.usado||e.usado)return;
+if(!a.id){showToast('Lancamento sem id','error');return;}
+var novoTotal=_totalQueFecha(a,e);
+if(novoTotal==null)novoTotal=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
+var msg='Ajustar "'+a.nome+'"? Provavel IOF/encargo que nao veio no SMS. '+(a.parcTot>1?'O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.':'Valor passa de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco.');
+if(!confirm(msg))return;
+try{
+var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoTotal})});
+if(!r.ok)throw new Error('HTTP '+r.status);
+a.valor=e.valor;a.usado=true;e.usado=true;
+st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
+showToast('Ajustado: '+_fmtC(e.valor),'success');
 _desenharConciliacao();
 }catch(err){showToast('Erro: '+err.message,'error');}
 }
@@ -1491,11 +1523,20 @@ html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center
 if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:800;margin-bottom:10px;">&#10003; Bateu no zero a zero!</div>';}
 var linhas='';
 sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
-linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+(p.moedaFix
+var acaoSug=p.moedaFix
 ?'<button onclick="corrigirMoeda('+p.ai+','+p.ei+')" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#0d47a1;margin-top:3px;">compra em '+_escHtml(a.moeda)+' &mdash; o banco converteu</div>'
-:'<button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>')+'</td></tr>';});
+:p.parcFix
+?'<button onclick="corrigirValorParc('+p.ai+','+p.ei+')" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#bf360c;margin-top:3px;">provavel IOF/encargo &mdash; diferenca de '+fmt(Math.abs(a.valor-e.valor))+'</div>'
+:'<button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>';
+linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+acaoSug+'</td></tr>';});
 falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<option value="'+k+'">'+labelCategoria(k)+'</option>';}).join('');
-linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;"><input id="nomefalta-'+o.i+'" value="'+_escHtml(capitalizarPrimeira(e.desc||''))+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+// IOF/encargo de parcelamento vem como lancamento a parte na fatura, sem
+// correspondente no app -- ja pre-preenche o nome pra so faltar categoria
+// + confirmar, em vez do usuario ter que digitar do zero.
+var ehIof=/\biof\b/i.test(e.desc||'');
+var nomeSugerido=ehIof?'IOF':capitalizarPrimeira(e.desc||'');
+var dicaIof=ehIof?'<div style="font-size:9px;color:#8d6e00;margin-bottom:4px;">&#128161; Parece IOF/encargo de parcelamento &mdash; confira a categoria e adicione</div>':'';
+linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
 sobra.forEach(function(o){var a=o.a;
 linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>'+_trEdit(a,o.i);});
 if(_concMostrarOk){st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
