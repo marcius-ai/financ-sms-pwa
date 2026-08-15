@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v97';
+const APP_VERSION = 'v98';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1208,7 +1208,7 @@ var y=exp.getFullYear();
 if((exp.getMonth()+1)!==m){var best=y,bd=1e15;[y-1,y,y+1].forEach(function(yy){var dt=new Date(yy,m-1,1);var diff=Math.abs(dt-exp);if(diff<bd){bd=diff;best=yy;}});y=best;}
 return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
 }
-async function adicionarFaltante(ei){
+async function adicionarFaltante(ei,btn){
 var st=_concEstado;if(!st)return;var e=st.ext[ei];if(!e)return;
 var sel=document.getElementById('catfalta-'+ei);var cat=sel?sel.value:'';
 if(!cat){showToast('Escolha a categoria','error');return;}
@@ -1220,6 +1220,7 @@ var total=(parcTot>1)?Number((e.valor*parcTot).toFixed(2)):e.valor;
 var inp=document.getElementById('nomefalta-'+ei);
 var digitado=inp?String(inp.value||'').trim():'';
 var nome=capitalizarPrimeira(digitado||e.desc||'Lancamento da fatura');
+_flashLinha(btn);
 try{
 var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:digitado||e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
 if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1228,7 +1229,7 @@ e.usado=true;
 st.pares.push({ai:st.app.length-1,ei:ei,auto:false});
 showToast('Lancamento adicionado','success');
 _desenharConciliacao();
-}catch(err){showToast('Erro: '+err.message,'error');}
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
 var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null;
 async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
@@ -1254,6 +1255,22 @@ if(ca.length>=4&&cb.length>=4&&(ca.indexOf(cb)>=0||cb.indexOf(ca)>=0))return 0.8
 var ta=a.split(' ').filter(function(t){return t.length>=3;}),tb=b.split(' ').filter(function(t){return t.length>=3;});if(!ta.length||!tb.length)return 0;var h=0;ta.forEach(function(t){if(tb.some(function(u){return u===t||u.indexOf(t)===0||t.indexOf(u)===0;}))h++;});return h/Math.max(ta.length,tb.length);}
 function _diffDias(iso,ddmm){if(!iso||!ddmm)return 999;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
 function _fmtC(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+// Feedback visual imediato ao tocar numa acao de conciliacao: sem isso o
+// clique so tem efeito visivel quando o redesenho inteiro da tela acontece
+// (as vezes depois de um fetch), o que parecia travado/estatico. Pisca a
+// linha de verde e desabilita o botao na hora do toque.
+function _flashLinha(btn){
+if(!btn)return;
+var tr=btn.closest?btn.closest('tr'):null;
+if(tr){tr.style.transition='background-color 0.2s ease';tr.style.backgroundColor='#c8e6c9';}
+btn.disabled=true;btn.style.opacity='0.55';btn.style.cursor='default';
+}
+function _desfazerFlash(btn){
+if(!btn)return;
+btn.disabled=false;btn.style.opacity='';btn.style.cursor='';
+var tr=btn.closest?btn.closest('tr'):null;
+if(tr)tr.style.backgroundColor='';
+}
 function _autoCasar(app,ext,pares){
 app.forEach(function(a,ai){if(a.usado)return;for(var ei=0;ei<ext.length;ei++){var e=ext[ei];if(e.usado)continue;if(a.data===e.data&&Math.abs(a.valor-e.valor)<=0.02){a.usado=true;e.usado=true;pares.push({ai:ai,ei:ei,auto:true,dd:0});break;}}});
 var cands=[];
@@ -1293,13 +1310,14 @@ _desenharConciliacao();
 }
 // Preenche o valor em reais que o banco cobrou numa compra em moeda
 // estrangeira. So roda quando o usuario clica -- nunca sozinho.
-async function corrigirMoeda(ai,ei){
+async function corrigirMoeda(ai,ei,btn){
 var st=_concEstado;if(!st)return;
 var a=st.app[ai],e=st.ext[ei];
 if(!a||!e||a.usado||e.usado)return;
 if(!a.id){showToast('Lancamento sem id','error');return;}
 var alvo=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
 if(!confirm('Corrigir "'+a.nome+'" de '+a.moeda+' '+a.valor.toFixed(2)+' para '+_fmtC(alvo)+' ? Esse e o valor em reais que o banco cobrou.'))return;
+_flashLinha(btn);
 try{
 var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:alvo,moeda:'BRL'})});
 if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1307,13 +1325,13 @@ a.valor=e.valor;a.moeda='BRL';a.usado=true;e.usado=true;
 st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
 showToast('Valor corrigido para '+_fmtC(alvo),'success');
 _desenharConciliacao();
-}catch(err){showToast('Erro: '+err.message,'error');}
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
 // Igual corrigirMoeda, mas pra IOF/encargo de parcelamento que o SMS nao
 // capturou: usa _totalQueFecha pra achar o total que faz ESTA parcela bater
 // com o banco respeitando a distribuicao de centavos das outras parcelas
 // (senao "consertar" o total quebraria as parcelas ja lancadas).
-async function corrigirValorParc(ai,ei){
+async function corrigirValorParc(ai,ei,btn){
 var st=_concEstado;if(!st)return;
 var a=st.app[ai],e=st.ext[ei];
 if(!a||!e||a.usado||e.usado)return;
@@ -1322,6 +1340,7 @@ var novoTotal=_totalQueFecha(a,e);
 if(novoTotal==null)novoTotal=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
 var msg='Ajustar "'+a.nome+'"? Provavel IOF/encargo que nao veio no SMS. '+(a.parcTot>1?'O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.':'Valor passa de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco.');
 if(!confirm(msg))return;
+_flashLinha(btn);
 try{
 var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoTotal})});
 if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1329,9 +1348,11 @@ a.valor=e.valor;a.usado=true;e.usado=true;
 st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
 showToast('Ajustado: '+_fmtC(e.valor),'success');
 _desenharConciliacao();
-}catch(err){showToast('Erro: '+err.message,'error');}
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
-function confirmarPar(ai,ei){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(!a||!e||a.usado||e.usado)return;a.usado=true;e.usado=true;st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});_desenharConciliacao();}
+function confirmarPar(ai,ei,btn){var st=_concEstado;if(!st)return;var a=st.app[ai],e=st.ext[ei];if(!a||!e||a.usado||e.usado)return;
+_flashLinha(btn);
+setTimeout(function(){a.usado=true;e.usado=true;st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});_desenharConciliacao();},220);}
 function confirmarTodasSugestoes(){var st=_concEstado;if(!st)return;_calcSugestoes().forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];if(!a||!e||a.usado||e.usado)return;a.usado=true;e.usado=true;st.pares.push({ai:p.ai,ei:p.ei,auto:false,dd:p.dd});});_desenharConciliacao();}
 function toggleConcOk(){_concMostrarOk=!_concMostrarOk;_desenharConciliacao();}
 async function salvarConciliacao(){
@@ -1408,7 +1429,7 @@ return null;
 }
 // Ajuste de um toque na linha ja conciliada com residuo de centavos.
 // So grava depois do confirm -- nunca sozinho.
-async function ajustarValorPar(ai,ei){
+async function ajustarValorPar(ai,ei,btn){
 var st=_concEstado;if(!st)return;
 var a=st.app[ai],e=st.ext[ei];
 if(!a||!e||!a.id){showToast('Lancamento sem id','error');return;}
@@ -1418,13 +1439,14 @@ var msg=a.parcTot>1
 ?'Ajustar "'+a.nome+'"? O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.'
 :'Ajustar "'+a.nome+'" de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco?';
 if(!confirm(msg))return;
+_flashLinha(btn);
 try{
 var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoTotal})});
 if(!r.ok)throw new Error('HTTP '+r.status);
 a.valor=e.valor;
 showToast('Ajustado: '+_fmtC(e.valor),'success');
 _desenharConciliacao();
-}catch(err){showToast('Erro: '+err.message,'error');}
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
 function preencherValor(ai,v){var el=document.getElementById('ed-valor-'+ai);if(el){el.value=Number(v).toFixed(2);}}
 function _formEdit(a,ai){
@@ -1528,15 +1550,27 @@ html+='<div style="display:flex;justify-content:space-between;font-size:11px;col
 }
 html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
 html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div></div>';
+// Barra de progresso: sem isso nao dava pra ver de cara quanto ja avancou
+// numa fatura longa -- so o texto pequeno acima, sem hierarquia visual.
+var totalConc=st.pares.length+sug.length+falta.length+sobra.length;
+if(totalConc>0){
+var pctConc=Math.round(st.pares.length/totalConc*100);
+html+='<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.75);margin-bottom:4px;"><span>'+st.pares.length+' de '+totalConc+' resolvidos</span><span>'+pctConc+'%</span></div><div style="background:rgba(255,255,255,0.15);border-radius:8px;height:8px;overflow:hidden;"><div style="background:'+(pctConc>=100?'#4CAF50':'#3949ab')+';height:100%;width:'+pctConc+'%;transition:width 0.35s ease;"></div></div></div>';
+}
 if(okZero){html+='<div style="background:#2e7d32;color:#fff;text-align:center;padding:12px;border-radius:10px;font-weight:800;margin-bottom:10px;">&#10003; Bateu no zero a zero!</div>';}
 var linhas='';
+// Cabecalhos de secao: antes era tudo uma tabela unica e continua, dificil
+// de saber onde comeca cada tipo de pendencia sem ler linha por linha.
+function _secHead(emoji,titulo,cor,n){return '<tr><td colspan="9" style="padding:12px 6px 4px;font-size:10px;font-weight:800;color:'+cor+';text-transform:uppercase;letter-spacing:0.4px;">'+emoji+' '+titulo+' ('+n+')</td></tr>';}
+if(sug.length)linhas+=_secHead('&#128161;','Sugest&otilde;es &mdash; confirme ou corrija','#8d6e00',sug.length);
 sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
 var acaoSug=p.moedaFix
-?'<button onclick="corrigirMoeda('+p.ai+','+p.ei+')" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#0d47a1;margin-top:3px;">compra em '+_escHtml(a.moeda)+' &mdash; o banco converteu</div>'
+?'<button onclick="corrigirMoeda('+p.ai+','+p.ei+',this)" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#0d47a1;margin-top:3px;">compra em '+_escHtml(a.moeda)+' &mdash; o banco converteu</div>'
 :p.parcFix
-?'<button onclick="corrigirValorParc('+p.ai+','+p.ei+')" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#bf360c;margin-top:3px;">provavel IOF/encargo &mdash; diferenca de '+fmt(Math.abs(a.valor-e.valor))+'</div>'
-:'<button onclick="confirmarPar('+p.ai+','+p.ei+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>';
+?'<button onclick="corrigirValorParc('+p.ai+','+p.ei+',this)" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#bf360c;margin-top:3px;">provavel IOF/encargo &mdash; diferenca de '+fmt(Math.abs(a.valor-e.valor))+'</div>'
+:'<button onclick="confirmarPar('+p.ai+','+p.ei+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>';
 linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+acaoSug+'</td></tr>';});
+if(falta.length)linhas+=_secHead('&#128308;','S&oacute; na fatura do banco','#b71c1c',falta.length);
 falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<option value="'+k+'">'+labelCategoria(k)+'</option>';}).join('');
 // IOF/encargo de parcelamento vem como lancamento a parte na fatura, sem
 // correspondente no app -- ja pre-preenche o nome pra so faltar categoria
@@ -1544,11 +1578,12 @@ falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<o
 var ehIof=/\biof\b/i.test(e.desc||'');
 var nomeSugerido=ehIof?'IOF':capitalizarPrimeira(e.desc||'');
 var dicaIof=ehIof?'<div style="font-size:9px;color:#8d6e00;margin-bottom:4px;">&#128161; Parece IOF/encargo de parcelamento &mdash; confira a categoria e adicione</div>':'';
-linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+if(sobra.length)linhas+=_secHead('&#128993;','S&oacute; no app','#8d6e00',sobra.length);
 sobra.forEach(function(o){var a=o.a;
 linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;font-size:10px;color:#8d6e00;">so no app<br>(duplicado?)</td></tr>'+_trEdit(a,o.i);});
-if(_concMostrarOk){st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
-linhas+='<tr style="background:#f1f8e9;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;color:#2e7d32;font-weight:800;">&#10003;'+(Math.abs(d)>0.001&&a.id?'<button onclick="ajustarValorPar('+p.ai+','+p.ei+')" style="display:block;margin:3px auto 0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">Ajustar '+(d>0?'+':'')+d.toFixed(2)+'</button>':'')+'</td></tr>'+_trEdit(a,p.ai);});}
+if(_concMostrarOk){linhas+=_secHead('&#9989;','Conciliados','#2e7d32',st.pares.length);st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];var d=e.valor-a.valor;
+linhas+='<tr style="background:#f1f8e9;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;color:#2e7d32;font-weight:800;">&#10003;'+(Math.abs(d)>0.001&&a.id?'<button onclick="ajustarValorPar('+p.ai+','+p.ei+',this)" style="display:block;margin:3px auto 0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;">Ajustar '+(d>0?'+':'')+d.toFixed(2)+'</button>':'')+'</td></tr>'+_trEdit(a,p.ai);});}
 if(linhas){
 html+='<div style="background:#fff;border-radius:10px;overflow:hidden;margin-bottom:10px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;color:#333;"><colgroup><col style="width:19%"><col style="width:7%"><col style="width:6%"><col style="width:10%"><col style="width:19%"><col style="width:7%"><col style="width:6%"><col style="width:10%"><col style="width:16%"></colgroup><thead><tr style="background:#e8eaf6;"><th style="padding:6px;text-align:left;">App</th><th style="padding:6px;text-align:left;">Data</th><th style="padding:6px;text-align:left;">Parc</th><th style="padding:6px;text-align:right;">Valor</th><th style="padding:6px;text-align:left;border-left:2px solid #c5cae9;">Fatura do banco</th><th style="padding:6px;text-align:left;">Data</th><th style="padding:6px;text-align:left;">Parc</th><th style="padding:6px;text-align:right;">Valor</th><th style="padding:6px;text-align:center;">Acao</th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
 }
