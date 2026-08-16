@@ -221,10 +221,10 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <button class="btn-cat ativos" onclick="confirmarCategoria('ativos')">Ativos</button>
 <button class="btn-cat bares" onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="confirmarCategoria('caridade')">Caridade</button>
+<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Deslocamento</button>
 <button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
 <button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
 <button class="btn-cat mercado" onclick="confirmarCategoria('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Deslocamento</button>
 <button class="btn-cat presentes" onclick="confirmarCategoria('presentes')">Presentes</button>
 <button class="btn-cat reembolsavel" onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
 <button class="btn-cat saude" onclick="confirmarCategoria('saude')">Saude</button>
@@ -272,10 +272,10 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <button class="btn-cat ativos" onclick="reclassificar('ativos')">Ativos</button>
 <button class="btn-cat bares" onclick="reclassificar('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="reclassificar('caridade')">Caridade</button>
+<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Deslocamento</button>
 <button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
 <button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
 <button class="btn-cat mercado" onclick="reclassificar('mercado')">Mercado</button>
-<button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Deslocamento</button>
 <button class="btn-cat presentes" onclick="reclassificar('presentes')">Presentes</button>
 <button class="btn-cat reembolsavel" onclick="reclassificar('reembolsavel')">Reembolsavel</button>
 <button class="btn-cat saude" onclick="reclassificar('saude')">Saude</button>
@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v99';
+const APP_VERSION = 'v100';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -308,7 +308,7 @@ const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1'
 const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',ativos:'Ativos',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Deslocamento',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
 function labelCategoria(cat){return CAT_LABELS[cat]||capitalizarPrimeira(cat||'');}
-var CAT_KEYS=['alimentacao','assinaturas','ativos','bares','caridade','empresa','entretenimento','mercado','mobilidade','presentes','reembolsavel','saude','servicos','vestuario'];
+var CAT_KEYS=['alimentacao','assinaturas','ativos','bares','caridade','mobilidade','empresa','entretenimento','mercado','presentes','reembolsavel','saude','servicos','vestuario'];
 function normalizarCategoria(c){
 if(!c) return '';
 c=String(c).toLowerCase().trim();
