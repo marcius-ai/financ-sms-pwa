@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v100';
+const APP_VERSION = 'v101';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -435,7 +435,7 @@ function clicarHistItem(idx) {
 var g=_histData[idx]; if(!g) return;
 _popularFaturaSelect(g);
 var nomeExib=nomeExibicao(g),moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG);
-abrirReclass(g.id,nomeExib,g.categoria||'?',valorFmt,g.estabelecimento||'',g.apelido||'');
+abrirReclass(g.id,nomeExib,g.categoria?labelCategoria(g.categoria):'?',valorFmt,g.estabelecimento||'',g.apelido||'');
 }
 async function abrirHistorico() {
 if(!localStorage.getItem('fechamento_atual')||!localStorage.getItem('fechamentos'))await _syncConfig();
@@ -488,7 +488,7 @@ var _fx=_faixaDatas(_histData);
 var _cicH=_fA?gerarCiclos(_fA,_pA,_fx.min,_fx.max):[];
 var html=_histData.map(function(g,idx){return [g,idx];}).filter(function(p){return _matchHist(p[0],q,_cicH);}).map(function(p){
 var g=p[0],idx=p[1];
-var nomeExib=nomeExibicao(g),catLabel=g.categoria||'?',moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG),dataFmt=formatarData(g.data_compra),horaFmt=formatarHora(g.hora_compra),hasApelido=g.apelido&&g.apelido.trim();
+var nomeExib=nomeExibicao(g),catLabel=g.categoria?labelCategoria(g.categoria):'?',moedaG=extrairMoeda(g.mensagem_original),valorFmt=formatarValor(g.valor,moedaG),dataFmt=formatarData(g.data_compra),horaFmt=formatarHora(g.hora_compra),hasApelido=g.apelido&&g.apelido.trim();
 return '<div class="hist-item" onclick="clicarHistItem('+idx+')"><div class="hist-item-left"><div class="hist-item-nome">'+nomeExib+'</div>'+(hasApelido?'<div class="hist-item-nome-orig">'+(g.estabelecimento||'')+'</div>':'')+'<div class="hist-item-data">'+dataFmt+(horaFmt&&horaFmt!=='-'?' '+horaFmt:'')+' - '+valorFmt+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;"><div class="hist-item-cat">'+catLabel+'</div>'+(function(){var fl=_faturaDoGasto(g,_cicH);return fl?'<div style="font-size:9px;font-weight:700;color:#5c6bc0;background:rgba(92,107,192,0.12);border-radius:8px;padding:2px 7px;white-space:nowrap;">&#128196; '+fl+'</div>':'';})()+(g.travado_em?'<span title="Fatura '+g.travado_em+' fechada: lancamento travado" style="font-size:13px;opacity:.6;padding:2px 4px;">&#128274;</span>':'<button onclick="excluirHistItem('+idx+',event)" title="Excluir lancamento" style="background:none;border:none;cursor:pointer;font-size:14px;opacity:.55;padding:2px 4px;">&#128465;</button>')+'</div></div>';
 }).join('');
 lista.innerHTML=html||'<div class="hist-loading">Nenhum resultado para "'+q+'".</div>';
@@ -1643,7 +1643,7 @@ return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class=
 ?'<span class="fatura-item-valor" title="Fatura fechada e conciliada">'+valorFmt+'</span><span title="Fatura fechada e conciliada: lancamento travado" style="font-size:12px;opacity:.7;">&#128274;</span>'
 :'<span class="fatura-item-valor" onclick="editarValor('+JSON.stringify(item.id)+','+item.valor+')" title="Editar valor">'+valorFmt+'</span><button class="btn-excluir" onclick="moverFatura('+JSON.stringify(item.id)+','+cicloIdx+');" title="Mover fatura" style="font-size:12px">&#x21C4;</button><button class="btn-excluir" onclick="excluirGasto('+JSON.stringify(item.id)+')" title="Excluir">&#x1F5D1;</button>')+'</div></div>';
 }).join('');
-return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+cat+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
+return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+labelCategoria(cat)+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
 var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+('R$ '+totPes.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))+' <span style="font-size:11px;font-weight:600;opacity:.7;">pessoais</span></div>'+(totEmp>0.001?'<div style="font-size:12px;color:#666;margin-top:-4px;margin-bottom:4px;">+ empresa R$ '+totEmp.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' = fatura <b>'+totalFmt.replace('R$ ','R$ ')+'</b></div>':'')+'<button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-conc-btn" style="background:#2e7d32;" onclick="abrirRelatorio('+cicloIdx+')">&#128196; Relatorio (salvar em PDF)</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
