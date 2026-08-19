@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v101';
+const APP_VERSION = 'v102';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -936,18 +936,26 @@ async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=a
 async function _extrairFaturaXLS(file){
 var buf=await file.arrayBuffer();
 var wb=XLSX.read(new Uint8Array(buf),{type:'array'});
-var linhas=[];
-wb.SheetNames.forEach(function(nome){
-var rows=XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,raw:false,defval:''});
-rows.forEach(function(r){linhas.push(r);});
-});
+// So a 1a aba: e a que vem direto do banco, no layout validado (col4=valor).
+// Se o usuario adicionar uma aba propria (curadoria manual, formatacao de
+// moeda em coluna diferente), processar as duas junto reprocessa as MESMAS
+// secoes de cartao com colunas incompativeis -- o valor vem vazio nessa
+// aba extra e sobrescreve com null o total que a 1a aba ja tinha lido certo
+// (13/08/26, achado com o Marcius: fatura com aba "Marcius" propria dele
+// alem da aba do banco, conferencia acusava 'banco diz 18787,95' sem
+// sentido pro cartao 7431 -- vinha dessa sobrescrita).
+var linhas=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''});
 var reSec=/^(.+?)\s*-\s*(\d{4})\s*$/;
 var reData=/^(\d{1,2})\/(\d{1,2})$/;
 var reParc=/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
 // Linhas que tem cara de lancamento (data + valor) mas NAO sao compra:
-// saldo anterior, pagamentos e encargos. O saldo anterior e o vilao:
+// saldo anterior, pagamentos e creditos. O saldo anterior e o vilao:
 // vem como "25/06 | SALDO ANTERIOR | 21503,08", identico a uma compra.
-var reNaoCompra=/^(SALDO ANTERIOR|PAG(TO|AMENTO)?\b|PAG BOLETO|CREDITO|ESTORNO|ENCARGOS|JUROS|MULTA|IOF\b|ANUIDADE|MULTA)/i;
+// IOF/ENCARGOS/JUROS/MULTA/ANUIDADE NAO entram aqui: sao encargo real que o
+// banco cobra como linha datada de verdade (13/08 | ENCARGOS DE ROTATIVO |
+// 34,57) -- excluir eles fazia sumir R$ reais da conciliacao sem nunca
+// aparecer como "faltando" pra adicionar (13/08/26, achado com o Marcius).
+var reNaoCompra=/^(SALDO ANTERIOR|PAG(TO|AMENTO)?\b|PAG BOLETO|CREDITO|ESTORNO)/i;
 var reTotalSec=/^Total para\b/i;
 var reTotalFat=/^Total da fatura em Real/i;
 var num=function(s){var v=parseFloat(String(s).replace(/\./g,'').replace(',','.'));return isNaN(v)?null:v;};
@@ -983,9 +991,13 @@ var conf=[];
 Object.keys(totaisBanco).forEach(function(c){
 var lst=itens.filter(function(x){return x.cartao===c;});
 if(!lst.length) return; // secao sem lancamento: nada a conferir
+// Cartao com pagamento no meio da secao: o total que o banco declara pra
+// aquela secao mistura credito, ai bate um alarme vermelho numa
+// conciliacao perfeita (mesma causa ja corrigida no parser de PDF). A
+// checagem que vale e a do total geral logo abaixo, que nao depende disso.
+if(pagos[c]) return;
 var lido=lst.reduce(function(a,x){return a+x.valor;},0);
-var esperado=totaisBanco[c]-(pagos[c]||0);
-if(Math.abs(lido-esperado)>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+esperado.toFixed(2));
+if(Math.abs(lido-totaisBanco[c])>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+totaisBanco[c].toFixed(2));
 });
 // Checagem principal: a soma de tudo tem que dar o total que o banco declara.
 if(totalFatura!=null){
