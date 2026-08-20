@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v102';
+const APP_VERSION = 'v103';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1234,7 +1234,13 @@ var digitado=inp?String(inp.value||'').trim():'';
 var nome=capitalizarPrimeira(digitado||e.desc||'Lancamento da fatura');
 _flashLinha(btn);
 try{
-var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:digitado||e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||'')})});
+// Fixa (pino) no ciclo que esta sendo conciliado agora, sempre -- sem isso
+// um item datado logo depois do fechamento (ex: banco processa 13/08, seu
+// corte e 12/08) cai sozinho no ciclo seguinte por causa da data, some da
+// conciliacao atual e reaparece como "faltando" toda vez que reabre. Foi
+// a causa real de ficar relancando o mesmo IOF/Encargos varias vezes
+// (13/08/26, achado com o Marcius).
+var r=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:digitado||e.desc||'Lancamento da fatura',apelido:nome,valor:total,data_compra:iso,parcelas_total:parcTot,categoria:cat,cartao_final:String(e.cartao||''),fatura_override:mesAno||null})});
 if(!r.ok)throw new Error('HTTP '+r.status);
 st.app.push({id:null,dataISO:iso,data:e.data,hora:'',valor:e.valor,moeda:'BRL',cat:cat,parcTot:parcTot,nome:nome,orig:e.desc||'',parc:(parcTot>1?(parcNum+'/'+parcTot):''),usado:true});
 e.usado=true;
