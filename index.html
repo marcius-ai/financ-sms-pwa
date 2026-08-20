@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v103';
+const APP_VERSION = 'v104';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1580,7 +1580,16 @@ if(_concCartoesUsados&&_concCartoesUsados.length){
 html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;margin-bottom:10px;color:rgba(255,255,255,0.8);font-size:11px;text-align:center;">Seus cart&otilde;es: <b>'+_concCartoesUsados.map(function(c){return '****'+c;}).join(' ')+'</b>'+(_concIgnorados>0?' &bull; '+_concIgnorados+' de outros cart&otilde;es ignorado'+(_concIgnorados>1?'s':''):'')+'</div>';
 }
 html+='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:10px;color:#fff;">';
-html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App</span><span>'+fmt(totApp)+'</span></div>';
+// A conciliacao PRECISA comparar o bruto (pessoal+empresa) contra o banco --
+// e o que realmente aparece cobrado no cartao, ele nao separa por categoria.
+// Mas sem mostrar a composicao, "App" bruto parece estar misturando gasto
+// da empresa com o pessoal sem aviso nenhum (achado com o Marcius, 20/08/26).
+var totEmpApp=st.app.reduce(function(s,a){return s+(String(a.cat||'').toLowerCase()==='empresa'?a.valor:0);},0);
+html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App (total do cart&atilde;o)</span><span>'+fmt(totApp)+'</span></div>';
+if(totEmpApp>0.001){
+html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.65);margin-bottom:3px;padding-left:8px;"><span>&bull; pessoal</span><span>'+fmt(totApp-totEmpApp)+'</span></div>';
+html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.65);margin-bottom:3px;padding-left:8px;"><span>&bull; empresa</span><span>'+fmt(totEmpApp)+'</span></div>';
+}
 html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div>';
 if(Math.abs(arred)>0.001){
 html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>Arredondamento de parcelas (ja casadas)</span><span>'+fmt(arred)+'</span></div>';
