@@ -299,7 +299,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v104';
+const APP_VERSION = 'v105';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1582,20 +1582,27 @@ html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:
 html+='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:10px;color:#fff;">';
 // A conciliacao PRECISA comparar o bruto (pessoal+empresa) contra o banco --
 // e o que realmente aparece cobrado no cartao, ele nao separa por categoria.
-// Mas sem mostrar a composicao, "App" bruto parece estar misturando gasto
-// da empresa com o pessoal sem aviso nenhum (achado com o Marcius, 20/08/26).
+// Mas o numero que importa pro Marcius e o que ELE gastou -- o pessoal fica
+// em destaque no topo (mesmo padrao do card de Faturas/Graficos), o resto
+// (bruto, banco, diferenca) e detalhe de apoio pra explicar a conta
+// (achado com o Marcius, 20/08/26: "app precisa me mostrar R$8.808,02,
+// foi isso que eu gastei" -- ele nao queria o bruto em destaque).
 var totEmpApp=st.app.reduce(function(s,a){return s+(String(a.cat||'').toLowerCase()==='empresa'?a.valor:0);},0);
-html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App (total do cart&atilde;o)</span><span>'+fmt(totApp)+'</span></div>';
+var totPesApp=totApp-totEmpApp;
+html+='<div style="font-size:11px;color:rgba(255,255,255,0.65);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">Voc&ecirc; gastou</div>';
+html+='<div style="font-size:28px;font-weight:900;margin-bottom:8px;">'+fmt(totPesApp)+'</div>';
 if(totEmpApp>0.001){
-html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.65);margin-bottom:3px;padding-left:8px;"><span>&bull; pessoal</span><span>'+fmt(totApp-totEmpApp)+'</span></div>';
-html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.65);margin-bottom:3px;padding-left:8px;"><span>&bull; empresa</span><span>'+fmt(totEmpApp)+'</span></div>';
+html+='<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:8px;">+ empresa '+fmt(totEmpApp)+' &nbsp;=&nbsp; total do cart&atilde;o '+fmt(totApp)+'</div>';
 }
+html+='<div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;">';
+html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App (total do cart&atilde;o)</span><span>'+fmt(totApp)+'</span></div>';
 html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div>';
 if(Math.abs(arred)>0.001){
 html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>Arredondamento de parcelas (ja casadas)</span><span>'+fmt(arred)+'</span></div>';
 }
 html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
-html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div></div>';
+html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div>';
+html+='</div></div>';
 // Barra de progresso: sem isso nao dava pra ver de cara quanto ja avancou
 // numa fatura longa -- so o texto pequeno acima, sem hierarquia visual.
 var totalConc=st.pares.length+sug.length+falta.length+sobra.length;
