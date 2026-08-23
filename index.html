@@ -48,19 +48,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-cat { background: #f5f5f5; border: 2px solid transparent; border-radius: 14px; padding: 14px 8px; font-size: clamp(13px,3.5vw,15px); font-weight: 700; cursor: pointer; min-height: 52px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; -webkit-tap-highlight-color: transparent; transition: transform 0.1s; }
 .btn-cat:active { transform: scale(0.96); }
 .btn-cat.alimentacao { color:#2e7d32; background:#e8f5e9; border-color:#a5d6a7; }
-.btn-cat.assinaturas { color:#1565c0; background:#e3f2fd; border-color:#90caf9; }
-.btn-cat.ativos { color:#4e342e; background:#efebe9; border-color:#bcaaa4; }
-.btn-cat.bares { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
 .btn-cat.caridade { color:#880e4f; background:#fce4ec; border-color:#f48fb1; }
-.btn-cat.empresa { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
-.btn-cat.entretenimento { color:#4a148c; background:#f3e5f5; border-color:#ce93d8; }
-.btn-cat.mercado { color:#004d40; background:#e0f2f1; border-color:#80cbc4; }
+.btn-cat.compras { color:#bf360c; background:#fbe9e7; border-color:#ffab91; }
 .btn-cat.mobilidade { color:#0d47a1; background:#e3f2fd; border-color:#90caf9; }
-.btn-cat.presentes { color:#bf360c; background:#fbe9e7; border-color:#ffab91; }
-.btn-cat.reembolsavel { color:#1b5e20; background:#f1f8e9; border-color:#aed581; }
+.btn-cat.empresa { color:#1a237e; background:#e8eaf6; border-color:#9fa8da; }
+.btn-cat.lazer { color:#e65100; background:#fff3e0; border-color:#ffcc80; }
 .btn-cat.saude { color:#b71c1c; background:#ffebee; border-color:#ef9a9a; }
 .btn-cat.servicos { color:#37474f; background:#eceff1; border-color:#b0bec5; }
-.btn-cat.vestuario { color:#e91e63; background:#fce4ec; border-color:#f48fb1; }
 .sug-label { color:rgba(255,255,255,0.9); font-size:13px; font-weight:700; text-align:center; margin-bottom:8px; }
 .btn-sug { width:100%; padding:16px; border:none; border-radius:14px; font-size:17px; font-weight:800; color:#fff; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.25); -webkit-tap-highlight-color:transparent; }
 .btn-sug:active { transform:scale(0.98); }
@@ -217,19 +211,13 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="catLabelSelecione" class="cat-label" style="margin-bottom:12px">SELECIONE A CATEGORIA</div>
 <div class="cat-grid">
 <button class="btn-cat alimentacao" onclick="confirmarCategoria('alimentacao')">Alimentacao</button>
-<button class="btn-cat assinaturas" onclick="confirmarCategoria('assinaturas')">Assinaturas</button>
-<button class="btn-cat ativos" onclick="confirmarCategoria('ativos')">Ativos</button>
-<button class="btn-cat bares" onclick="confirmarCategoria('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="confirmarCategoria('caridade')">Caridade</button>
+<button class="btn-cat compras" onclick="confirmarCategoria('compras')">Compras</button>
 <button class="btn-cat mobilidade" onclick="confirmarCategoria('mobilidade')">Deslocamento</button>
 <button class="btn-cat empresa" onclick="confirmarCategoria('empresa')">Empresa</button>
-<button class="btn-cat entretenimento" onclick="confirmarCategoria('entretenimento')">Entretenimento</button>
-<button class="btn-cat mercado" onclick="confirmarCategoria('mercado')">Mercado</button>
-<button class="btn-cat presentes" onclick="confirmarCategoria('presentes')">Presentes</button>
-<button class="btn-cat reembolsavel" onclick="confirmarCategoria('reembolsavel')">Reembolsavel</button>
+<button class="btn-cat lazer" onclick="confirmarCategoria('lazer')">Lazer</button>
 <button class="btn-cat saude" onclick="confirmarCategoria('saude')">Saude</button>
 <button class="btn-cat servicos" onclick="confirmarCategoria('servicos')">Servicos</button>
-<button class="btn-cat vestuario" onclick="confirmarCategoria('vestuario')">Vestuario</button>
 </div>
 </div>
 <div id="screenHistorico" class="hidden"><div class="hist-header"><button class="btn-back" onclick="fecharHistorico()">&#8592; Voltar</button><div class="hist-title">&#128197; Historico</div></div><div style="width:100%;max-width:480px;margin-bottom:12px;"><input type="text" id="histSearch" oninput="renderHistorico()" placeholder="&#128269; Buscar nome, categoria, valor ou data..." autocomplete="off" style="width:100%;padding:10px 14px;border:none;border-radius:20px;font-size:14px;outline:none;background:rgba(255,255,255,0.15);color:#fff;" /></div><div id="histList" class="hist-list"><div class="hist-loading">Carregando...</div></div></div>
@@ -268,19 +256,13 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div class="modal-apelido-wrap"><div class="modal-apelido-label">Apelido do estabelecimento</div><div class="modal-apelido-row"><input type="text" id="modalApelidoInput" class="modal-apelido-input" placeholder="Como quer chamar este lugar?" maxlength="40" /><button class="btn-salvar-apelido" onclick="salvarApelidoModal()">Salvar</button></div></div>
 <div class="cat-grid">
 <button class="btn-cat alimentacao" onclick="reclassificar('alimentacao')">Alimentacao</button>
-<button class="btn-cat assinaturas" onclick="reclassificar('assinaturas')">Assinaturas</button>
-<button class="btn-cat ativos" onclick="reclassificar('ativos')">Ativos</button>
-<button class="btn-cat bares" onclick="reclassificar('bares')">Bares/Restaurantes</button>
 <button class="btn-cat caridade" onclick="reclassificar('caridade')">Caridade</button>
+<button class="btn-cat compras" onclick="reclassificar('compras')">Compras</button>
 <button class="btn-cat mobilidade" onclick="reclassificar('mobilidade')">Deslocamento</button>
 <button class="btn-cat empresa" onclick="reclassificar('empresa')">Empresa</button>
-<button class="btn-cat entretenimento" onclick="reclassificar('entretenimento')">Entretenimento</button>
-<button class="btn-cat mercado" onclick="reclassificar('mercado')">Mercado</button>
-<button class="btn-cat presentes" onclick="reclassificar('presentes')">Presentes</button>
-<button class="btn-cat reembolsavel" onclick="reclassificar('reembolsavel')">Reembolsavel</button>
+<button class="btn-cat lazer" onclick="reclassificar('lazer')">Lazer</button>
 <button class="btn-cat saude" onclick="reclassificar('saude')">Saude</button>
 <button class="btn-cat servicos" onclick="reclassificar('servicos')">Servicos</button>
-<button class="btn-cat vestuario" onclick="reclassificar('vestuario')">Vestuario</button>
 </div>
 </div>
 </div>
@@ -299,20 +281,29 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v105';
+const APP_VERSION = 'v106';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
-const CORES_CAT = {alimentacao:'#4CAF50',assinaturas:'#2196F3',ativos:'#6d4c41',bares:'#FF9800',caridade:'#E91E63',empresa:'#3F51B5',entretenimento:'#9C27B0',mercado:'#009688',mobilidade:'#03A9F4',presentes:'#FF5722',reembolsavel:'#8BC34A',saude:'#F44336',servicos:'#607D8B',vestuario:'#E91E63',sem_categoria:'#9E9E9E'};
+const CORES_CAT = {alimentacao:'#4CAF50',caridade:'#E91E63',compras:'#9C27B0',mobilidade:'#03A9F4',empresa:'#3F51B5',lazer:'#FF9800',saude:'#F44336',servicos:'#607D8B',sem_categoria:'#9E9E9E'};
 const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1','#d81b60','#6d4c41','#546e7a','#c0ca33','#00897b','#f4511e','#1e88e5','#7cb342','#fdd835'];
-const CAT_LABELS = {alimentacao:'Alimentação',assinaturas:'Assinaturas',ativos:'Ativos',bares:'Bares/Restaur.',caridade:'Caridade',empresa:'Empresa',entretenimento:'Entretenimento',mercado:'Mercado',mobilidade:'Deslocamento',presentes:'Presentes',reembolsavel:'Reembolsável',saude:'Saúde',servicos:'Serviços',vestuario:'Vestuário',sem_categoria:'Sem categoria'};
+const CAT_LABELS = {alimentacao:'Alimentação',caridade:'Caridade',compras:'Compras',mobilidade:'Deslocamento',empresa:'Empresa',lazer:'Lazer',saude:'Saúde',servicos:'Serviços',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
 function labelCategoria(cat){return CAT_LABELS[cat]||capitalizarPrimeira(cat||'');}
-var CAT_KEYS=['alimentacao','assinaturas','ativos','bares','caridade','mobilidade','empresa','entretenimento','mercado','presentes','reembolsavel','saude','servicos','vestuario'];
+var CAT_KEYS=['alimentacao','caridade','compras','mobilidade','empresa','lazer','saude','servicos'];
 function normalizarCategoria(c){
 if(!c) return '';
 c=String(c).toLowerCase().trim();
-if(c.indexOf('bares')>=0||c.indexOf('restaur')>=0) return 'bares';
+// Enxugamento de categorias (20/08/26, pedido do Marcius): 14 -> 8. As
+// chaves antigas continuam reconhecidas aqui (dado historico, sugestao do
+// Claude que ainda nao viu o prompt novo, cache de app antigo) e mapeiam
+// pro grupo que absorveu elas -- nunca aparecem mais como opcao, so como
+// alias de entrada.
+if(c.indexOf('bares')>=0||c.indexOf('restaur')>=0||c.indexOf('entretenimento')>=0) return 'lazer';
+if(c.indexOf('mercado')>=0) return 'alimentacao';
+if(c.indexOf('ativo')>=0||c.indexOf('presente')>=0||c.indexOf('vestuario')>=0) return 'compras';
+if(c.indexOf('assinatura')>=0) return 'servicos';
+if(c.indexOf('reembolsavel')>=0) return 'empresa';
 if(c.indexOf('deslocamento')>=0||c.indexOf('mobilidade')>=0) return 'mobilidade';
 if(CAT_KEYS.indexOf(c)>=0) return c;
 for(var i=0;i<CAT_KEYS.length;i++){if(c.indexOf(CAT_KEYS[i])>=0||CAT_KEYS[i].indexOf(c)>=0) return CAT_KEYS[i];}
