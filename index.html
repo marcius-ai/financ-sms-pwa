@@ -281,7 +281,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v110';
+const APP_VERSION = 'v111';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -734,7 +734,7 @@ chips+='</div></div>';
 var fornec='';
 if(_grafCompFiltro){
 // Matriz fornecedor x mes -- ja ordenada por total (maior pro menor).
-var mat=_matrizFornecedoresCategoriaComp(meses,_grafCompFiltro).slice(0,12);
+var mat=_matrizFornecedoresCategoriaComp(meses,_grafCompFiltro);
 var thMeses=meses.map(function(m){return '<th style="padding:6px 8px;text-align:right;font-size:10px;color:rgba(255,255,255,0.6);font-weight:700;white-space:nowrap;">'+_escHtml(m.label)+'</th>';}).join('');
 var rows=mat.map(function(e){
 var nome=e[0],dados=e[1];
