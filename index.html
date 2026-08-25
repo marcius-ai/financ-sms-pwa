@@ -281,11 +281,16 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v107';
+const APP_VERSION = 'v108';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
-const CORES_CAT = {alimentacao:'#4CAF50',caridade:'#E91E63',compras:'#9C27B0',mobilidade:'#03A9F4',empresa:'#3F51B5',lazer:'#FF9800',saude:'#F44336',servicos:'#607D8B',sem_categoria:'#9E9E9E'};
+// Paleta redistribuida (20/08/26, pedido do Marcius): 8 categorias com o
+// matiz espacado a cada 45 graus na roda de cores (verde/magenta/roxo/azul/
+// laranja/vermelho/verde-agua ficavam parecidos demais nos graficos --
+// vermelho e rosa em especial). Reembolsavel/empresa vira marrom (tom
+// abafado, nao compete com o laranja de Lazer nem o vermelho de Saude).
+const CORES_CAT = {alimentacao:'#43A047',caridade:'#D81B60',compras:'#8E24AA',mobilidade:'#1E88E5',empresa:'#795548',lazer:'#FB8C00',saude:'#E53935',servicos:'#00897B',sem_categoria:'#9E9E9E'};
 const CORES_ESTAB = ['#3949ab','#e53935','#43a047','#fb8c00','#8e24aa','#00acc1','#d81b60','#6d4c41','#546e7a','#c0ca33','#00897b','#f4511e','#1e88e5','#7cb342','#fdd835'];
 const CAT_LABELS = {alimentacao:'Alimentação',caridade:'Caridade',compras:'Compras',mobilidade:'Deslocamento',empresa:'Reembolsável',lazer:'Lazer',saude:'Saúde',servicos:'Serviços',sem_categoria:'Sem categoria'};
 function capitalizarPrimeira(s){if(!s) return s;s=String(s).trim();if(!s) return s;return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();}
@@ -670,6 +675,16 @@ if(_grafModo==='categoria'){if(_grafDrillCat) renderGraficoDrillCategoria(_grafF
 // de composicao (parcelas novas, reclassificacoes), comparar ela seria
 // comparar coisa que ainda vai mudar. Por isso so comeca a existir dado a
 // partir da 1a fatura selada (Jul/26).
+var _grafCompFiltro=null;
+function _toggleFiltroCategoriaComp(cat){_grafCompFiltro=(_grafCompFiltro===cat)?null:cat;renderGraficoComparativo();}
+// Soma, ACROSS os meses exibidos, quanto cada fornecedor pesou numa
+// categoria -- catEstabs[cat] ja vem pronto por ciclo do calcFaturasDados,
+// so precisa somar por fornecedor entre os meses.
+function _fornecedoresPorCategoriaComp(meses,cat){
+var agg={};
+meses.forEach(function(m){var ce=(m.catEstabs&&m.catEstabs[cat])||{};Object.keys(ce).forEach(function(estab){agg[estab]=(agg[estab]||0)+ce[estab].v;});});
+return Object.entries(agg).sort(function(a,b){return b[1]-a[1];});
+}
 function renderGraficoComparativo(){
 var tb=document.getElementById('graf-total');
 var dn=document.getElementById('drillNav');if(dn)dn.style.display='none';
@@ -689,16 +704,43 @@ return;
 // criterio do resto do app: card de Faturas e Grafico por Categoria ja
 // excluem 'empresa' do que e "seu" gasto).
 function _pessoal(c){return (c.total||0)-((c.cats&&c.cats.empresa)||0);}
-var totalGeral=meses.reduce(function(s,c){return s+_pessoal(c);},0),nConc=meses.filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).length,mediaGeral=meses.length?totalGeral/meses.length:0;
-if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Comparativo (pessoais) &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' &bull; '+nConc+' conciliada'+(nConc!==1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+mediaGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;">m&eacute;dia mensal</div>';
 var totalPorCat={};
 meses.forEach(function(c){Object.keys(c.cats||{}).forEach(function(k){if(k==='empresa')return;totalPorCat[k]=(totalPorCat[k]||0)+c.cats[k];});});
-var catsOrdenadas=Object.keys(totalPorCat).sort(function(a,b){return totalPorCat[b]-totalPorCat[a];});
+var catsTodas=Object.keys(totalPorCat).sort(function(a,b){return totalPorCat[b]-totalPorCat[a];});
+// Filtro perdeu a categoria (mes sem nenhum gasto dela)? volta pra "todas".
+if(_grafCompFiltro&&catsTodas.indexOf(_grafCompFiltro)<0)_grafCompFiltro=null;
+var catsOrdenadas=_grafCompFiltro?[_grafCompFiltro]:catsTodas;
+// Isolar 1 categoria resolve dois pedidos juntos: categoria pequena que
+// sumia empilhada com as grandes agora ocupa a barra inteira sozinha (o
+// Chart.js reescala pro maximo dos dados VISIVEIS, nao do total original),
+// e da pra ver quem sao os fornecedores dela no periodo (pedido do
+// Marcius, 20/08/26).
+var totalGeral=meses.reduce(function(s,c){return s+(_grafCompFiltro?(c.cats[_grafCompFiltro]||0):_pessoal(c));},0),nConc=meses.filter(function(c){return _faturasFechadas.indexOf(c.mesAno)>=0;}).length,mediaGeral=meses.length?totalGeral/meses.length:0;
+var tituloTopo=_grafCompFiltro?labelCategoria(_grafCompFiltro):'Comparativo (pessoais)';
+if(tb)tb.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">'+_escHtml(tituloTopo)+' &bull; '+meses.length+' fatura'+(meses.length>1?'s':'')+' &bull; '+nConc+' conciliada'+(nConc!==1?'s':'')+'</div><div style="font-size:28px;font-weight:900;color:#fff;">R$ '+mediaGeral.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;">m&eacute;dia mensal</div>';
+// Chips de filtro -- clicar isola, clicar de novo volta pra "Todas". Fica
+// no resumoFatura (vazio no modo comparativo, ja tinha o espaco certo).
+var rf=document.getElementById('resumoFatura');
+if(rf){
+var chips='<div style="width:100%;max-width:480px;margin-top:14px;"><div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;">';
+chips+='<button onclick="_toggleFiltroCategoriaComp(null)" style="flex-shrink:0;padding:6px 13px;border-radius:20px;border:none;'+(!_grafCompFiltro?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;">Todas</button>';
+catsTodas.forEach(function(cat){var ativo=_grafCompFiltro===cat;chips+='<button onclick="_toggleFiltroCategoriaComp('+JSON.stringify(cat)+')" style="flex-shrink:0;padding:6px 13px 6px 10px;border-radius:20px;border:none;'+(ativo?'background:#3949ab;':'background:rgba(255,255,255,0.15);')+'color:#fff;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:'+(CORES_CAT[cat]||'#9E9E9E')+';display:inline-block;"></span>'+_escHtml(labelCategoria(cat))+'</button>';});
+chips+='</div></div>';
+var fornec='';
+if(_grafCompFiltro){
+var lista=_fornecedoresPorCategoriaComp(meses,_grafCompFiltro).slice(0,12);
+fornec='<div style="width:100%;max-width:480px;margin-top:10px;background:rgba(255,255,255,0.08);border-radius:14px;padding:14px;">'
++'<div style="font-size:11px;font-weight:800;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Fornecedores &mdash; '+_escHtml(labelCategoria(_grafCompFiltro))+' no per&iacute;odo</div>'
++(lista.length?lista.map(function(e){return '<div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;padding:4px 0;border-top:1px solid rgba(255,255,255,0.1);"><span>'+_escHtml(e[0])+'</span><span style="font-weight:700;">'+_fmtC(e[1])+'</span></div>';}).join(''):'<div style="font-size:11px;color:rgba(255,255,255,0.6);">Sem detalhe por fornecedor.</div>')
++'</div>';
+}
+rf.innerHTML=chips+fornec;
+}
 var labels=meses.map(function(c){return (_faturasFechadas.indexOf(c.mesAno)>=0)?[c.label,'✓ conciliado']:[c.label];});
 var datasets=catsOrdenadas.map(function(cat){return {label:labelCategoria(cat),data:meses.map(function(c){return Number((c.cats[cat]||0).toFixed(2));}),backgroundColor:CORES_CAT[cat]||'#9E9E9E',borderRadius:2,barPercentage:0.92,categoryPercentage:0.94};});
 var ctx=document.getElementById('canvasGraf');if(!ctx)return;
 ctx.parentElement.style.height='340px';
-if(gh)gh.textContent='✓ = fatura fechada e conciliada com o banco; sem check = ainda em aberto (pode mudar)';
+if(gh)gh.textContent=_grafCompFiltro?'Toque em "Todas" pra voltar a ver todas as categorias':'✓ = fatura fechada e conciliada com o banco; sem check = ainda em aberto (pode mudar)';
 // Sem eixo Y (numeros ja vao dentro/acima das barras): rotulo por segmento
 // SO se couber (altura e largura do pedaco), e o total no topo da coluna.
 var lblPlugin={id:'compLbl',afterDatasetsDraw:function(chart){
@@ -723,7 +765,7 @@ c.fillText(txt,p.x,(p.y+p.base)/2);
 var ultimo=chart.getDatasetMeta(chart.data.datasets.length-1);
 c.font='bold 12px sans-serif';c.fillStyle='#333';c.textAlign='center';c.textBaseline='bottom';
 ultimo.data.forEach(function(bar,i){
-var t=meses[i]?_pessoal(meses[i]):0;
+var t=meses[i]?(_grafCompFiltro?(meses[i].cats[_grafCompFiltro]||0):_pessoal(meses[i])):0;
 var p=bar.getProps(['x','y'],true);
 c.fillText('R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),p.x,p.y-6);
 });
@@ -732,7 +774,7 @@ c.restore();
 _chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:24}},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:11,weight:'700'}}},y:{stacked:true,display:false,grid:{display:false}}}}});
 }
 function voltarCategorias(){_grafDrillCat=null;renderGraficoAtivo();}
-function renderResumoFatura(f){var el=document.getElementById('resumoFatura');if(!el)return;if(!f){el.innerHTML='';return;}var tB=f.total||0,tE=(f.cats&&f.cats.empresa)||0,tP=tB-tE,pct=tB>0?Math.round(tE/tB*100):0;el.innerHTML='<div style="background:rgba(255,255,255,0.08);border-radius:16px;padding:16px;margin-top:16px;width:100%;max-width:480px;"><div style="font-size:13px;font-weight:800;color:rgba(255,255,255,0.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Resumo da Fatura &mdash; '+f.labelFull+'</div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#a5d6a7;font-size:15px;font-weight:700;">Gastos Pessoais</span><span style="color:#a5d6a7;font-size:18px;font-weight:900;">R$ '+tP.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#ef9a9a;font-size:13px;">(+) Empresa</span><span style="color:#ef9a9a;font-weight:700;">R$ '+tE.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:12px;border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;"><span style="color:#fff;font-size:15px;font-weight:700;">= Fatura (total)</span><span style="color:#fff;font-size:18px;font-weight:900;">R$ '+tB.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="background:rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;height:28px;display:flex;margin-bottom:4px;"><div style="background:#ef9a9a;height:100%;width:'+pct+'%;min-width:'+(tE>0?2:0)+'px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#7f1010;font-weight:700;">'+(pct>12?pct+"% Empresa":"")+'</div><div style="background:#a5d6a7;height:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#1a237e;font-weight:700;">'+(pct<88?(100-pct)+"% Pessoal":"")+'</div></div><div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#ef9a9a;">Empresa '+pct+'%</span><span style="font-size:11px;color:#a5d6a7;">Pessoal '+(100-pct)+'%</span></div></div>';}
+function renderResumoFatura(f){var el=document.getElementById('resumoFatura');if(!el)return;if(!f){el.innerHTML='';return;}var tB=f.total||0,tE=(f.cats&&f.cats.empresa)||0,tP=tB-tE,pct=tB>0?Math.round(tE/tB*100):0;el.innerHTML='<div style="background:rgba(255,255,255,0.08);border-radius:16px;padding:16px;margin-top:16px;width:100%;max-width:480px;"><div style="font-size:13px;font-weight:800;color:rgba(255,255,255,0.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Resumo da Fatura &mdash; '+f.labelFull+'</div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#a5d6a7;font-size:15px;font-weight:700;">Gastos Pessoais</span><span style="color:#a5d6a7;font-size:18px;font-weight:900;">R$ '+tP.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#ef9a9a;font-size:13px;">(+) Reembols&aacute;vel</span><span style="color:#ef9a9a;font-weight:700;">R$ '+tE.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:12px;border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;"><span style="color:#fff;font-size:15px;font-weight:700;">= Fatura (total)</span><span style="color:#fff;font-size:18px;font-weight:900;">R$ '+tB.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div><div style="background:rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;height:28px;display:flex;margin-bottom:4px;"><div style="background:#ef9a9a;height:100%;width:'+pct+'%;min-width:'+(tE>0?2:0)+'px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#7f1010;font-weight:700;">'+(pct>12?pct+"% Reembolsável":"")+'</div><div style="background:#a5d6a7;height:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#1a237e;font-weight:700;">'+(pct<88?(100-pct)+"% Pessoal":"")+'</div></div><div style="display:flex;justify-content:space-between;"><span style="font-size:11px;color:#ef9a9a;">Reembols&aacute;vel '+pct+'%</span><span style="font-size:11px;color:#a5d6a7;">Pessoal '+(100-pct)+'%</span></div></div>';}
 // Cabecalho do grafico. Mostra os Pessoais (o grafico exclui empresa), mas
 // tambem o total da fatura -- e esse o numero que bate com o banco.
 function _hdrPessoais(fatura){
