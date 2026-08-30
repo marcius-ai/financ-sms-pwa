@@ -281,7 +281,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v111';
+const APP_VERSION = 'v112';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -327,6 +327,9 @@ function extrairMoeda(msg) { if(!msg) return 'BRL'; var m=msg.match(/VALOR DE (U
 function formatarValor(v, moeda) { if(typeof v !== 'number') return 'R$ -'; var s=SIMBOLOS_MOEDA[moeda||'BRL']||moeda||'R$'; return s+' '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function formatarData(d) { if(!d) return '-'; return new Date(d+'T12:00:00').toLocaleDateString('pt-BR'); }
 function formatarHora(h) { return h?h.substring(0,5):'-'; }
+function _fmtDataAssoc(iso) { if(!iso) return ''; var d=new Date(String(iso).slice(0,10)+'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR'); }
+function confirmarSugestaoIdx(i) { var s=(window._sugestoesGasto||[])[i]; if(!s) return; confirmarSugestao(s.cat,s.nome); }
+function confirmarSugestao(cat,nome) { var inp=document.getElementById('gastoApelidoInput'); if(inp&&nome) inp.value=nome; confirmarCategoria(cat); }
 function nomeExibicao(g) { return (g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'-'); }
 // Sugestao de nome pra fornecedor NOVO: caixa-titulo do nome que veio no
 // SMS, ate 4 palavras, preposicoes minusculas. O usuario edita ou aceita.
@@ -350,12 +353,30 @@ document.getElementById('gastoData').textContent=formatarData(g.data_compra);
 document.getElementById('gastoHora').textContent=formatarHora(g.hora_compra);
 document.getElementById('gastoCartao').textContent='****';
 document.getElementById('progressText').textContent=(indexAtual+1)+' de '+gastos.length+' pendentes';
-var sugKey=normalizarCategoria(g.categoria_sugerida);
+// Duas sugestoes independentes (pedido do Marcius, 30/08/2026): a da ULTIMA
+// associacao explicita que ele fez pra esse estabelecimento (com a data --
+// "Suzano 03", "Sagrada Familia" etc ja tem historico), e a que sai so do
+// nome cru do SMS (fallback pra estabelecimento nunca visto). Se as duas
+// baterem no mesmo nome+categoria, mostra so uma pra nao duplicar botao.
+var catAssoc=g.categoria_associada?normalizarCategoria(g.categoria_associada):'';
+var catSms=normalizarCategoria(g.categoria_sms||g.categoria_sugerida);
+var nomeSms=(g.apelido_sugerido&&g.apelido_sugerido.trim())||capitalizarPrimeira(nomeOrig);
+var sugs=[];
+if(catAssoc&&apelido){
+var dataAssoc=_fmtDataAssoc(g.categoria_associada_data);
+sugs.push({cat:catAssoc,nome:apelido,label:'Você associou "'+apelido+'" a '+labelCategoria(catAssoc)+(dataAssoc?' em '+dataAssoc:'')});
+}
+if(catSms&&!(sugs.length&&sugs[0].cat===catSms&&sugs[0].nome===nomeSms)){
+sugs.push({cat:catSms,nome:nomeSms,label:'Pelo nome do SMS, "'+nomeSms+'" costuma ser '+labelCategoria(catSms)});
+}
+window._sugestoesGasto=sugs;
 var box=document.getElementById('sugestaoBox'),lbl=document.getElementById('catLabelSelecione');
 if(box){
-if(sugKey && apelido){
-var cor=CORES_CAT[sugKey]||'#3949ab';
-box.innerHTML='<div class="sug-label">Você já gastou aqui antes. É '+labelCategoria(sugKey)+'?</div><button class="btn-sug" style="background:'+cor+';" onclick="confirmarCategoria(\''+sugKey+'\')">&#10003; Confirmar: '+labelCategoria(sugKey)+'</button>';
+if(sugs.length){
+box.innerHTML=sugs.map(function(s,i){
+var cor=CORES_CAT[s.cat]||'#3949ab';
+return '<div class="sug-label">'+_escHtml(s.label)+'</div><button class="btn-sug" style="background:'+cor+';margin-bottom:8px;" onclick="confirmarSugestaoIdx('+i+')">&#10003; Confirmar: '+labelCategoria(s.cat)+'</button>';
+}).join('');
 box.style.display='';
 if(lbl) lbl.textContent='OU ESCOLHA OUTRA CATEGORIA';
 }else{
