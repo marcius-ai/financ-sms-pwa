@@ -281,7 +281,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v114';
+const APP_VERSION = 'v115';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1526,11 +1526,30 @@ if(!a||!e||a.usado||e.usado)return;
 if(!a.id){showToast('Lancamento sem id','error');return;}
 var novoTotal=_totalQueFecha(a,e);
 if(novoTotal==null)novoTotal=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
+var diff=Math.abs(Number((e.valor-a.valor).toFixed(2)));
 var msg='Ajustar "'+a.nome+'"? Provavel IOF/encargo que nao veio no SMS. '+(a.parcTot>1?'O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.':'Valor passa de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco.');
 if(!confirm(msg))return;
 _flashLinha(btn);
 try{
 var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoTotal})});
+if(r.status===423){
+// Parcela de uma compra cuja PRIMEIRA fatura ja fechou: mudar o valor
+// total mexeria no rateio de TODAS as parcelas, inclusive as de meses ja
+// selados -- o backend trava isso de proposito (HTTP 423). Em vez de
+// insistir no total compartilhado, lanca a diferenca como um item avulso
+// PRESO neste ciclo (fatura_override), igual ao fluxo manual de
+// IOF/Encargos que ja existe pra "faltando" na conciliacao.
+var det='';try{det=(await r.json()).detail||'';}catch(errDet){}
+if(!confirm((det||'Essa compra tem parcela de uma fatura ja fechada.')+' Lancar a diferenca de '+_fmtC(diff)+' como um item avulso (IOF/encargo) so neste mes?')){_desfazerFlash(btn);return;}
+var mesAno=(_conciliarCiclo&&_conciliarCiclo.mesAno)||'';
+var r2=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:a.orig||a.nome,apelido:'IOF/Encargo '+a.nome,valor:diff,data_compra:a.dataISO,parcelas_total:1,categoria:a.cat||'servicos',cartao_final:e.cartao||'',fatura_override:mesAno||null})});
+if(!r2.ok)throw new Error('HTTP '+r2.status);
+a.usado=true;e.usado=true;
+st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
+showToast('IOF/encargo de '+_fmtC(diff)+' lancado neste mes','success');
+_desenharConciliacao();
+return;
+}
 if(!r.ok)throw new Error('HTTP '+r.status);
 a.valor=e.valor;a.usado=true;e.usado=true;
 st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
@@ -1799,9 +1818,14 @@ falta.forEach(function(o){var e=o.e;var opts=CAT_KEYS.map(function(k){return '<o
 // correspondente no app -- ja pre-preenche o nome pra so faltar categoria
 // + confirmar, em vez do usuario ter que digitar do zero.
 var ehIof=/\biof\b/i.test(e.desc||'');
-var nomeSugerido=ehIof?'IOF':capitalizarPrimeira(e.desc||'');
+// Placeholder instantaneo enquanto a sugestao de verdade (aprendida ou via
+// Claude, mesma regra do /sms) chega -- ver _sugerirNomeCategoriaFalta logo
+// depois do render. Antes disso era so a 1a letra maiuscula do texto cru
+// do banco ("Spani atacadista sao"), bem diferente do apelido limpo que o
+// app sempre sugere quando o gasto chega por SMS (Marcius, 31/08/26).
+var nomeSugerido=ehIof?'IOF':_sugerirNome(e.desc||'');
 var dicaIof=ehIof?'<div style="font-size:9px;color:#8d6e00;margin-bottom:4px;">&#128161; Parece IOF/encargo de parcelamento &mdash; confira a categoria e adicione</div>':'';
-linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
+linhas+='<tr style="background:#ffebee;border-top:1px solid #e6e6e6;">'+cApp(null)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+dicaIof+'<input id="nomefalta-'+o.i+'" value="'+_escHtml(nomeSugerido)+'" oninput="this.dataset.editado=\'1\'" placeholder="Nome do estabelecimento" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;box-sizing:border-box;" /><select id="catfalta-'+o.i+'" onchange="this.dataset.editado=\'1\'" style="width:100%;padding:4px;border-radius:6px;border:1px solid #e0a0a0;font-size:10px;margin-bottom:4px;"><option value="">Categoria...</option>'+opts+'</select><button onclick="adicionarFaltante('+o.i+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#43; Adicionar</button></td></tr>';});
 if(sobra.length)linhas+=_secHead('&#128993;','S&oacute; no app','#8d6e00',sobra.length);
 sobra.forEach(function(o){var a=o.a;
 linhas+='<tr style="background:#fffde7;border-top:1px solid #e6e6e6;">'+cApp(a,o.i)+cExt(null)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+(a.id?'<button onclick="excluirSobra('+o.i+',this)" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128465; Excluir</button>':'')+'<div style="font-size:9px;color:#8d6e00;margin-top:3px;">so no app<br>(duplicado?)</div></td></tr>'+_trEdit(a,o.i);});
@@ -1819,6 +1843,21 @@ html+='<div style="color:rgba(255,255,255,0.6);font-size:10px;text-align:center;
 html+='<button onclick="verTextoExtraido()" style="width:100%;margin-top:8px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);border:none;border-radius:8px;padding:9px;font-size:11px;font-weight:700;cursor:pointer;">&#128269; Ver texto extraido do PDF (diagnostico)</button>';
 if(_concMaiores&&_concMaiores.length){html+='<div style="color:rgba(255,255,255,0.55);font-size:10px;margin-top:8px;">Maiores itens lidos da fatura: '+_concMaiores.map(function(x){return _fmtC(x.valor)+' ('+(x.descricao||'?').slice(0,18)+')';}).join(' &bull; ')+'</div>';}
 out.innerHTML=html;
+// Sugestao de verdade (aprendida ou Claude, mesma regra do /sms) chega
+// depois, em paralelo -- sem travar o render da tabela nem sequenciar N
+// chamadas uma atras da outra.
+falta.forEach(function(o){if(!/\biof\b/i.test(o.e.desc||''))_sugerirNomeCategoriaFalta(o.i,o.e.desc||'');});
+}
+async function _sugerirNomeCategoriaFalta(i,descBruta){
+try{
+var r=await fetch(API+'/estabelecimentos/sugerir?nome='+encodeURIComponent(descBruta));
+if(!r.ok)return;
+var d=await r.json();
+var inp=document.getElementById('nomefalta-'+i);
+if(inp&&d.apelido&&inp.dataset.editado!=='1')inp.value=d.apelido;
+var sel=document.getElementById('catfalta-'+i);
+if(sel&&d.categoria&&sel.dataset.editado!=='1')sel.value=d.categoria;
+}catch(e){}
 }
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
 function renderFaturas(gastosData,fechamentoAtualStr){
