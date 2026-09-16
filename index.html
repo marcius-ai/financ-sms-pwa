@@ -281,7 +281,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v116';
+const APP_VERSION = 'v117';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1483,12 +1483,13 @@ function _calcSugestoes(){var st=_concEstado,s=[];if(!st)return[];
 st.app.forEach(function(a,ai){if(a.usado||a.moeda==='BRL')return;st.ext.forEach(function(e,ei){if(e.usado)return;
 var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));
 if(sim>=0.5&&dd<=3)s.push({ai:ai,ei:ei,dd:dd,sim:sim,moedaFix:true,score:100+sim});});});
-// Parcela com IOF/encargo que o SMS nao capturou: o banco cobra um pouco a
-// mais numa parcela (geralmente a 1a) e isso NAO e o centavo de arredondamento
-// (esse ja e tratado por _valorParcela) -- e um valor real a mais que so
-// aparece na fatura. Sem isso o usuario tinha que excluir o lancamento do
-// app e incluir de novo a partir da fatura. Casa por nome+data com folga
-// maior que o match exato, mas so oferece -- nunca aplica sozinho.
+// Parcela que nao bate com o que _valorParcela calculou: NAO e IOF/encargo
+// de verdade -- e so a divisao igual do total nao reproduzir como o banco
+// realmente rateia (a 1a parcela sempre sai diferente das demais pra fechar
+// o arredondamento, Marcius 16/09/26). Sem isso o usuario tinha que excluir
+// o lancamento do app e incluir de novo a partir da fatura. Casa por
+// nome+data com folga maior que o match exato, mas so oferece -- nunca
+// aplica sozinho (ver corrigirValorParc).
 st.app.forEach(function(a,ai){if(a.usado||a.moeda!=='BRL'||!(a.parcTot>1))return;st.ext.forEach(function(e,ei){if(e.usado)return;
 var diff=Math.abs(a.valor-e.valor);if(diff<=0.02||diff>Math.max(1,a.valor*0.05))return;
 var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));
@@ -1556,7 +1557,13 @@ return;
 var novoTotal=_totalQueFecha(a,e);
 if(novoTotal==null)novoTotal=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
 var diff=Math.abs(Number((e.valor-a.valor).toFixed(2)));
-var msg='Ajustar "'+a.nome+'"? Provavel IOF/encargo que nao veio no SMS. '+(a.parcTot>1?'O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.':'Valor passa de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco.');
+// Chegando aqui, ou nao e parcelado, ou e a 1a parcela -- que o banco
+// SEMPRE faz diferente das demais pra fechar o arredondamento (Marcius,
+// 16/09/26: "nao e IOF nem encargo, e so a diferenca entre a 1a parcela e
+// as demais"). So fala em IOF/encargo pra compra de pagamento unico, onde
+// isso ainda e uma explicacao plausivel (juros, tarifa em moeda estrangeira).
+var motivo=a.parcTot>1?'A 1a parcela de compra parcelada costuma vir diferente das demais (o banco ajusta o arredondamento nela) -- nao veio assim no SMS.':'Provavel IOF/encargo que nao veio no SMS.';
+var msg='Ajustar "'+a.nome+'"? '+motivo+' '+(a.parcTot>1?'O total da compra passa a '+_fmtC(novoTotal)+' e esta parcela fica '+_fmtC(e.valor)+', igual ao banco.':'Valor passa de '+_fmtC(a.valor)+' para '+_fmtC(e.valor)+', igual ao banco.');
 if(!confirm(msg))return;
 _flashLinha(btn);
 try{
@@ -1566,16 +1573,17 @@ if(r.status===423){
 // total mexeria no rateio de TODAS as parcelas, inclusive as de meses ja
 // selados -- o backend trava isso de proposito (HTTP 423). Em vez de
 // insistir no total compartilhado, lanca a diferenca como um item avulso
-// PRESO neste ciclo (fatura_override), igual ao fluxo manual de
-// IOF/Encargos que ja existe pra "faltando" na conciliacao.
+// PRESO neste ciclo (fatura_override), igual ao fluxo manual pra
+// "faltando" na conciliacao.
 var det='';try{det=(await r.json()).detail||'';}catch(errDet){}
-if(!confirm((det||'Essa compra tem parcela de uma fatura ja fechada.')+' Lancar a diferenca de '+_fmtC(diff)+' como um item avulso (IOF/encargo) so neste mes?')){_desfazerFlash(btn);return;}
+var rotulo=a.parcTot>1?'ajuste de arredondamento da 1a parcela':'IOF/encargo';
+if(!confirm((det||'Essa compra tem parcela de uma fatura ja fechada.')+' Lancar a diferenca de '+_fmtC(diff)+' como um item avulso ('+rotulo+') so neste mes?')){_desfazerFlash(btn);return;}
 var mesAno=(_conciliarCiclo&&_conciliarCiclo.mesAno)||'';
-var r2=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:a.orig||a.nome,apelido:'IOF/Encargo '+a.nome,valor:diff,data_compra:a.dataISO,parcelas_total:1,categoria:a.cat||'servicos',cartao_final:e.cartao||'',fatura_override:mesAno||null})});
+var r2=await fetch(API+'/gastos/importar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:a.orig||a.nome,apelido:(a.parcTot>1?'Ajuste parcela 1 ':'IOF/Encargo ')+a.nome,valor:diff,data_compra:a.dataISO,parcelas_total:1,categoria:a.cat||'servicos',cartao_final:e.cartao||'',fatura_override:mesAno||null})});
 if(!r2.ok)throw new Error('HTTP '+r2.status);
 a.usado=true;e.usado=true;
 st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
-showToast('IOF/encargo de '+_fmtC(diff)+' lancado neste mes','success');
+showToast((a.parcTot>1?'Ajuste de arredondamento':'IOF/encargo')+' de '+_fmtC(diff)+' lancado neste mes','success');
 _desenharConciliacao();
 return;
 }
@@ -1838,7 +1846,7 @@ sug.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];
 var acaoSug=p.moedaFix
 ?'<button onclick="corrigirMoeda('+p.ai+','+p.ei+',this)" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#0d47a1;margin-top:3px;">compra em '+_escHtml(a.moeda)+' &mdash; o banco converteu</div>'
 :p.parcFix
-?'<button onclick="corrigirValorParc('+p.ai+','+p.ei+',this)" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#bf360c;margin-top:3px;">provavel IOF/encargo &mdash; diferenca de '+fmt(Math.abs(a.valor-e.valor))+'</div>'
+?'<button onclick="corrigirValorParc('+p.ai+','+p.ei+',this)" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#128176; Corrigir p/ '+fmt(e.valor)+'</button><div style="font-size:9px;color:#bf360c;margin-top:3px;">parcela nao bate (arredondamento) &mdash; diferenca de '+fmt(Math.abs(a.valor-e.valor))+'</div>'
 :'<button onclick="confirmarPar('+p.ai+','+p.ei+',this)" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">&#10003; E o mesmo</button><div style="font-size:9px;color:#8d6e00;margin-top:3px;">'+(p.dd===0?'mesma data':p.dd+' dia'+(p.dd>1?'s':''))+'</div>';
 linhas+='<tr style="background:#fff8e1;border-top:1px solid #e6e6e6;">'+cApp(a,p.ai)+cExt(e)+'<td style="padding:6px;text-align:center;vertical-align:top;">'+acaoSug+'</td></tr>';});
 if(falta.length)linhas+=_secHead('&#128308;','S&oacute; na fatura do banco','#b71c1c',falta.length);
