@@ -281,7 +281,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v115';
+const APP_VERSION = 'v116';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -608,6 +608,16 @@ if(pt<=1)return Number(total.toFixed(2));
 var cents=Math.round(total*100),base=Math.floor(cents/pt),resto=cents-base*pt;
 return (base+((p<=resto)?1:0))/100;
 }
+// A divisao igual do total quase nunca bate com o que o banco realmente
+// cobra por parcela -- a 1a e sempre diferente das demais (Marcius,
+// 16/09/26). Uma vez confirmado o valor real contra o extrato (ver
+// corrigirValorParc), ele passa a valer pra TODA parcela >1 a partir do
+// mes em que foi confirmado -- NUNCA pra tras, senao reescreve fatura ja
+// fechada.
+function _valorParcelaG(g,total,pt,p,mesAnoCiclo){
+if(g&&g.valor_parcela_fixo&&pt>1&&p>1&&mesAnoCiclo>=(g.valor_parcela_fixo_desde||''))return Number(g.valor_parcela_fixo);
+return _valorParcela(total,pt,p);
+}
 function _idxCicloData(ciclos,iso){for(var i=0;i<ciclos.length;i++){if(iso>=ciclos[i].inicio&&iso<=ciclos[i].fechamento)return i;}return -1;}
 function _idxCicloParcela(ciclos,dataCompra,p,ovr){
 // ovr = fatura_override (mesAno "2026-07"): o usuario fixou o gasto numa
@@ -632,10 +642,10 @@ var cat=g.categoria||'sem_categoria',
 estabKey=(g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'?'),
 vt=parseFloat(g.valor||0),pt=parseInt(g.parcelas_total||1)||1;
 for(var p=1;p<=pt;p++){
-var vp=_valorParcela(vt,pt,p);
 var _ci=_idxCicloParcela(ciclos,g.data_compra,p,g.fatura_override);
 if(_ci>=0){
 var c=ciclos[_ci];
+var vp=_valorParcelaG(g,vt,pt,p,c.mesAno);
 c.cats[cat]=(c.cats[cat]||0)+vp;
 c.estabs[estabKey]=(c.estabs[estabKey]||0)+vp;
 if(cat!=='empresa')c.estabsPessoal[estabKey]=(c.estabsPessoal[estabKey]||0)+vp;
@@ -1515,15 +1525,34 @@ showToast('Valor corrigido para '+_fmtC(alvo),'success');
 _desenharConciliacao();
 }catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
-// Igual corrigirMoeda, mas pra IOF/encargo de parcelamento que o SMS nao
-// capturou: usa _totalQueFecha pra achar o total que faz ESTA parcela bater
-// com o banco respeitando a distribuicao de centavos das outras parcelas
-// (senao "consertar" o total quebraria as parcelas ja lancadas).
+// A divisao igual do total quase nunca bate com o extrato de verdade -- a
+// 1a parcela e sempre diferente das demais (Marcius, 16/09/26). Entao:
+// - divergencia numa parcela >1 (recorrente): o valor do banco vale pra
+//   TODAS as parcelas seguintes a partir de agora (valor_parcela_fixo),
+//   sem depender do lote estar travado -- e um campo so-pra-frente.
+// - divergencia na 1a parcela (ou compra sem parcelamento): e o caso de
+//   sempre, ajusta o total (_totalQueFecha); se a fatura ja fechou, lanca
+//   a diferenca como item avulso preso neste ciclo em vez de mexer no total.
 async function corrigirValorParc(ai,ei,btn){
 var st=_concEstado;if(!st)return;
 var a=st.app[ai],e=st.ext[ei];
 if(!a||!e||a.usado||e.usado)return;
 if(!a.id){showToast('Lancamento sem id','error');return;}
+var pAtual=parseInt(String(a.parc||'1').split('/')[0],10)||1;
+if(a.parcTot>1&&pAtual>1){
+if(!confirm('Ajustar "'+a.nome+'"? A parcela '+pAtual+'/'+a.parcTot+' passa a '+_fmtC(e.valor)+', e as PROXIMAS parcelas desta compra tambem vao usar esse valor (a 1a parcela nunca bate com as demais mesmo).'))return;
+_flashLinha(btn);
+try{
+var mesAno=(_conciliarCiclo&&_conciliarCiclo.mesAno)||'';
+var r=await fetch(API+'/gastos/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor_parcela_fixo:e.valor,valor_parcela_fixo_desde:mesAno})});
+if(!r.ok)throw new Error('HTTP '+r.status);
+a.valor=e.valor;a.usado=true;e.usado=true;
+st.pares.push({ai:ai,ei:ei,auto:false,dd:_diffDias(a.dataISO,e.data)});
+showToast('Parcelas seguintes vao usar '+_fmtC(e.valor),'success');
+_desenharConciliacao();
+}catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
+return;
+}
 var novoTotal=_totalQueFecha(a,e);
 if(novoTotal==null)novoTotal=(a.parcTot>1)?Number((e.valor*a.parcTot).toFixed(2)):e.valor;
 var diff=Math.abs(Number((e.valor-a.valor).toFixed(2)));
@@ -1866,7 +1895,7 @@ var faixa=_faixaDatas(gastosData);
 var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
 ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
-gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var valorParcela=_valorParcela(valorTotal,parcTotal,parc);var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc,g.fatura_override);if(cicloIdx===-1) continue;ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||'',travado:g.travado_em||''});}});
+gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc,g.fatura_override);if(cicloIdx===-1) continue;var valorParcela=_valorParcelaG(g,valorTotal,parcTotal,parc,ciclos[cicloIdx].mesAno);ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||'',travado:g.travado_em||''});}});
 var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
 function _prio(c){if(c.mesAno===_mesHoje)return 0;if(c.tipo==='atual')return 1;if(c.tipo==='futura')return 2;return 3;}
 var _ordenados=ciclos.slice().sort(function(a,b){var pa=_prio(a),pb=_prio(b);if(pa!==pb)return pa-pb;return String(b.mesAno).localeCompare(String(a.mesAno));});
