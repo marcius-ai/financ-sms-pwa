@@ -197,7 +197,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 </div>
 </header>
 <div id="screenLoading" class="state-screen"><div class="spinner"></div><div class="state-subtitle">Buscando gastos...</div></div>
-<div id="screenVazio" class="state-screen hidden"><div class="state-icon">OK</div><div class="state-title">Tudo em dia!</div><div class="state-subtitle">Nenhum gasto pendente de classificacao.</div><button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button><button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button><button class="btn-reload" style="background:#1565c0;margin-top:0;" onclick="toggleNotif()" id="btnNotifVazio">&#128276; Ativar Notificacoes</button><div id="proximoFechamento" style="margin-top:12px;font-size:13px;color:rgba(255,255,255,0.7);"></div></div>
+<div id="screenVazio" class="state-screen hidden"><div class="state-icon">OK</div><div class="state-title">Tudo em dia!</div><div class="state-subtitle">Nenhum gasto pendente de classificacao.</div><button class="btn-reload" onclick="carregarGastos()">Verificar novamente</button><button class="btn-reload" style="background:#3949ab;margin-top:0" onclick="abrirHistorico()">&#128197; Ver historico</button><button class="btn-reload" style="background:#00897b;margin-top:0" onclick="abrirGraficos()">&#128202; Ver graficos</button><button class="btn-reload" style="background:#1565c0;margin-top:0;" onclick="toggleNotif()" id="btnNotifVazio">&#128276; Ativar Notificacoes</button><div id="proximoFechamento" style="margin-top:12px;font-size:13px;color:rgba(255,255,255,0.7);"></div></div>
 <div id="screenErro" class="state-screen hidden"><div class="state-icon">Erro</div><div id="erroMsg" class="state-title">Erro de conexao</div><div class="state-subtitle">Nao foi possivel conectar ao servidor.</div><button class="btn-reload" onclick="carregarGastos()">Tentar novamente</button></div>
 <div id="screenGasto" class="hidden" style="width:100%;max-width:480px;margin:0 auto;">
 <div class="gasto-card">
@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v121';
+const APP_VERSION = 'v122';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -824,7 +824,28 @@ c.fillText('R$ '+t.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFracti
 });
 c.restore();
 }};
-_chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:24}},responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}},onClick:function(evt,item,legend){var ds=legend.chart.data.datasets[item.datasetIndex];if(ds&&ds.catKey)_toggleFiltroCategoriaComp(ds.catKey);}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:11,weight:'700'}}},y:{stacked:true,display:false,grid:{display:false}}}}});
+_chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:24}},responsive:true,maintainAspectRatio:false,
+// Toca num pedaco da coluna (o numero daquela categoria naquele mes) -- abre
+// o mesmo detalhamento por fornecedor com Pareto que a aba "Por Categoria"
+// ja tem, so que direto pro mes+categoria clicados (pedido do Marcius,
+// 05/10/26: "da onde esta vindo esse dinheiro, qual fornecedor, com Pareto").
+onClick:function(evt,els){if(!els||!els.length)return;var el=els[0],cat=catsOrdenadas[el.datasetIndex],mes=meses[el.index];if(cat&&mes)_abrirDrillDeComparativo(mes,cat);},
+plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}},onClick:function(evt,item,legend){var ds=legend.chart.data.datasets[item.datasetIndex];if(ds&&ds.catKey)_toggleFiltroCategoriaComp(ds.catKey);}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:11,weight:'700'}}},y:{stacked:true,display:false,grid:{display:false}}}}});
+}
+// Sai do modo Comparativo e entra no drill por fornecedor (mesma tela/visual
+// Pareto de renderGraficoDrillCategoria) do mes+categoria clicados. Replica
+// a transicao de trocarModoGraf() pro modo "categoria" na mao, porque aqui
+// quem decide o alvo e o clique no grafico, nao o botao da aba.
+function _abrirDrillDeComparativo(mes,cat){
+_grafFatura=mes;_grafDrillCat=cat;_grafModo='categoria';
+var btnCat=document.getElementById('btnGrafCat'),btnEstab=document.getElementById('btnGrafEstab'),btnDia=document.getElementById('btnGrafDia'),btnComp=document.getElementById('btnGrafComp');
+if(btnCat)btnCat.className='graf-toggle-btn active';
+if(btnEstab)btnEstab.className='graf-toggle-btn';
+if(btnDia)btnDia.className='graf-toggle-btn';
+if(btnComp)btnComp.className='graf-toggle-btn';
+var gb=document.getElementById('graf-btns');if(gb)gb.style.display='flex';
+var af=document.getElementById('graf-acoes-fatura');if(af)af.style.display='block';
+renderGraficoAtivo();
 }
 // Gastos por dia dentro do CICLO da fatura selecionada (inicio ao fechamento
 // real, nao dia-do-mes puro -- senao dia 5 de julho e dia 5 de agosto
