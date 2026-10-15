@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v120';
+const APP_VERSION = 'v121';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1685,8 +1685,7 @@ st.pares.forEach(function(p){var a=st.app[p.ai];if(a&&a.id){m[_chaveConc(a)]=1;n
 _salvarMarcados(m);
 // Regra do usuario: conciliou + salvou = TRAVOU. Sela no servidor quando a
 // diferenca real e zero e nada falta/sobra; senao so registra as marcas.
-var totApp=st.app.reduce(function(sm,i){return sm+i.valor;},0);
-var totExt=st.ext.reduce(function(sm,i){return sm+i.valor;},0);
+var _tc=_totaisConc(st),totApp=_tc.totApp,totExt=_tc.totExt;
 var arred=0;st.pares.forEach(function(p){var a=st.app[p.ai],e=st.ext[p.ei];if(a&&e)arred+=(e.valor-a.valor);});
 var pend=st.app.some(function(a){return !a.usado;})||st.ext.some(function(e){return !e.usado;});
 var zero=Math.abs((totExt-totApp)-arred)<=0.005&&!pend;
@@ -1871,9 +1870,24 @@ showToast('Salvo','success');
 _desenharConciliacao();
 }catch(err){showToast('Erro: '+err.message,'error');}
 }
+// Itens "so no app"/"so no banco" que o usuario excluiu ou mandou pra
+// proxima fatura ficam usado=true mas fora de qualquer par -- somar o total
+// bruto de st.app/st.ext ignorando isso fazia sobrar uma "diferenca real"
+// fantasma do tamanho exato do item removido, mesmo com 0 faltando/sobrando
+// na tela (achado pelo Marcius, 05/10/26, logo apos usar o botao "Manter p/
+// proxima fatura" -- mas o mesmo bug ja existia faz tempo com "Excluir").
+// So entra na conta quem ainda esta pendente (sobra/falta) ou quem foi de
+// fato conciliado (par) -- quem foi excluido/adiado sai dos dois lados.
+function _totaisConc(st){
+var paredAi={},paredEi={};
+st.pares.forEach(function(p){paredAi[p.ai]=1;paredEi[p.ei]=1;});
+var totApp=st.app.reduce(function(s,a,i){return s+((!a.usado||paredAi[i])?a.valor:0);},0);
+var totExt=st.ext.reduce(function(s,e,i){return s+((!e.usado||paredEi[i])?e.valor:0);},0);
+return {totApp:totApp,totExt:totExt};
+}
 function _desenharConciliacao(){
 var out=document.getElementById('concResultado');var st=_concEstado;if(!st||!out)return;
-var totApp=st.app.reduce(function(s,i){return s+i.valor;},0),totExt=st.ext.reduce(function(s,i){return s+i.valor;},0),dif=totExt-totApp;
+var _tc0=_totaisConc(st),totApp=_tc0.totApp,totExt=_tc0.totExt,dif=totExt-totApp;
 // O centavo de parcela nao e divergencia: e o banco distribuindo a sobra da
 // divisao (400,00/3 = 133,33+133,33+133,33 = 399,99; o banco cobra 133,34 numa
 // delas). Mexer no total pra 'consertar' quebraria as outras parcelas. Entao
