@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v122';
+const APP_VERSION = 'v123';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -603,14 +603,18 @@ _grafDrillCat=null;try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok
 // data de calendario colocava DUAS parcelas da mesma compra num ciclo de 32
 // dias (ex: TKT 2/10 em 16/06 e 3/10 em 16/07, com ciclo 15/06->16/07).
 // O banco nao faz total/N arredondado em toda parcela: divide em CENTAVOS e
-// joga a sobra nas primeiras. 400,00/3 = 133,33 com 1 centavo sobrando ->
-// parcela 1 = 133,34, as outras 133,33, somando 400,00 exato. Fazendo
-// total/N o app dava 133,33x3 = 399,99 e nascia a diferenca de 1 centavo.
+// joga TODA a sobra na 1a parcela -- as demais ficam todas IGUAIS ao valor
+// base (floor do total/N). Corrigido 21/10/26: achavamos que a sobra se
+// espalhava pelas primeiras parcelas (ex.: 46,91/3 -> 15,64+15,64+15,63), mas
+// o Marcius confirmou com um caso real (Temu 07/09, 3x) que o banco faz
+// 15,65+15,63+15,63 -- toda a sobra na 1a, as outras duas EXATAMENTE iguais.
+// So dava pra ver a diferenca quando a sobra e >=2 centavos (com 1 centavo
+// os dois jeitos de calcular coincidem, por isso passou despercebido antes).
 function _valorParcela(total,pt,p){
 total=parseFloat(total||0);pt=parseInt(pt||1)||1;
 if(pt<=1)return Number(total.toFixed(2));
 var cents=Math.round(total*100),base=Math.floor(cents/pt),resto=cents-base*pt;
-return (base+((p<=resto)?1:0))/100;
+return (p===1?(base+resto):base)/100;
 }
 // A divisao igual do total quase nunca bate com o que o banco realmente
 // cobra por parcela -- a 1a e sempre diferente das demais (Marcius,
@@ -2049,16 +2053,27 @@ if(sel&&d.categoria&&sel.dataset.editado!=='1')sel.value=d.categoria;
 }catch(e){}
 }
 async function adicionarLancamento(mesAno){var desc=(document.getElementById('add-desc-'+mesAno)||{}).value||'',valStr=(document.getElementById('add-val-'+mesAno)||{}).value||'',cat=((document.getElementById('add-cat-'+mesAno)||{}).value||'Outros').trim()||'Outros';if(!desc.trim()){alert('Informe a descricao');return;}var val=parseFloat(valStr.replace(',','.'));if(isNaN(val)||val<=0){alert('Informe um valor valido');return;}try{var r=await fetch(API+'/gastos/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estabelecimento:desc.trim(),valor:val,moeda:'BRL',categoria:cat,mes_ano_fatura:mesAno})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao adicionar: '+e.message);}}
+// Cache pra re-renderizar na hora de abrir/fechar um card (_toggleFaturaCard)
+// sem precisar buscar os gastos de novo no servidor.
+var _ultimoFaturasGastos=null,_ultimoFaturasFech=null;
+// Quais faturas estao expandidas -- fecha(das) por padrao, pedido do Marcius
+// (21/10/26): a tela virou "uma zona" com todo mes aberto de uma vez,
+// obrigando rolar por tudo pra achar o mes certo. Cada card abre so no toque.
+var _faturasExpandidas={};
+function _toggleFaturaCard(mesAno){_faturasExpandidas[mesAno]=!_faturasExpandidas[mesAno];if(_ultimoFaturasGastos)renderFaturas(_ultimoFaturasGastos,_ultimoFaturasFech);}
 function renderFaturas(gastosData,fechamentoAtualStr){
+_ultimoFaturasGastos=gastosData;_ultimoFaturasFech=fechamentoAtualStr;
 var proximoStr=localStorage.getItem('proximo_fechamento')||'';
 var faixa=_faixaDatas(gastosData);
 var ciclos=gerarCiclos(fechamentoAtualStr,proximoStr,faixa.min,faixa.max);
 ciclos.forEach(function(c){c.itens=[];c.label=c.labelLongo||c.label;});
 _faturasCiclos=ciclos;
 gastosData.forEach(function(g){var dataCp=g.data_compra;if(!dataCp) return;var parcTotal=parseInt(g.parcelas_total||1),moeda=extrairMoeda(g.mensagem_original),valorTotal=parseFloat(g.valor||0);for(var parc=1;parc<=parcTotal;parc++){var baseDate=new Date(dataCp+'T12:00:00'),parcDate=new Date(baseDate.getFullYear(),baseDate.getMonth()+(parc-1),baseDate.getDate()),cicloIdx=_idxCicloParcela(ciclos,dataCp,parc,g.fatura_override);if(cicloIdx===-1) continue;var valorParcela=_valorParcelaG(g,valorTotal,parcTotal,parc,ciclos[cicloIdx].mesAno);ciclos[cicloIdx].itens.push({id:g.id,estabelecimento:g.estabelecimento,apelido:g.apelido||'',categoria:g.categoria||'Sem categoria',valor:parcTotal>1?valorParcela:valorTotal,moeda:moeda,parcAtual:parc,parcTotal:parcTotal,dataCompra:dataCp,hora:g.hora_compra||'',cartao:g.cartao_final||'',travado:g.travado_em||''});}});
-var _hj=new Date(),_mesHoje=_hj.getFullYear()+'-'+String(_hj.getMonth()+1).padStart(2,'0');
-function _prio(c){if(c.mesAno===_mesHoje)return 0;if(c.tipo==='atual')return 1;if(c.tipo==='futura')return 2;return 3;}
-var _ordenados=ciclos.slice().sort(function(a,b){var pa=_prio(a),pb=_prio(b);if(pa!==pb)return pa-pb;return String(b.mesAno).localeCompare(String(a.mesAno));});
+// Ordem decrescente simples por mes -- pedido do Marcius (21/10/26): a
+// prioridade "mes de hoje > atual > futura > resto" deixava a lista fora de
+// ordem cronologica (ex.: mes atual pulava pro topo mesmo com um mes futuro
+// ja povoado acima dele).
+var _ordenados=ciclos.slice().sort(function(a,b){return String(b.mesAno).localeCompare(String(a.mesAno));});
 var html=_ordenados.map(function(c){
 var cicloIdx=ciclos.indexOf(c),totalCiclo=c.itens.reduce(function(s,i){return s+i.valor;},0),
 totEmp=c.itens.reduce(function(s,i){return s+(String(i.categoria||'').toLowerCase()==='empresa'?i.valor:0);},0),
@@ -2073,12 +2088,15 @@ var itensDetalhe=sorted.map(function(item){var parcTag=item.parcTotal>1?'<span c
 var dtItem=item.dataCompra?item.dataCompra.slice(8,10)+'/'+item.dataCompra.slice(5,7):'',hrItem=item.hora?item.hora.substring(0,5):'';
 return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class="fatura-item-nome">'+nomeExib+parcTag+cartaoTag+'</span><span style="font-size:10px;color:#999;">'+dtItem+(hrItem?' '+hrItem:'')+'</span>'+(hasApelido?'<span class="fatura-item-nome-orig">'+(item.estabelecimento||'')+'</span>':'')+'</div><div class="fatura-item-actions">'+(item.travado
 ?'<span class="fatura-item-valor" title="Fatura fechada e conciliada">'+valorFmt+'</span><span title="Fatura fechada e conciliada: lancamento travado" style="font-size:12px;opacity:.7;">&#128274;</span>'
-:'<span class="fatura-item-valor" onclick="editarValor('+JSON.stringify(item.id)+','+item.valor+')" title="Editar valor">'+valorFmt+'</span><button class="btn-excluir" onclick="moverFatura('+JSON.stringify(item.id)+','+cicloIdx+');" title="Mover fatura" style="font-size:12px">&#x21C4;</button><button class="btn-excluir" onclick="excluirGasto('+JSON.stringify(item.id)+')" title="Excluir">&#x1F5D1;</button>')+'</div></div>';
+:'<span class="fatura-item-valor" onclick="editarValor(&apos;'+item.id+'&apos;,'+item.valor+')" title="Editar valor">'+valorFmt+'</span><button class="btn-excluir" onclick="moverFatura(&apos;'+item.id+'&apos;,'+cicloIdx+');" title="Mover fatura" style="font-size:12px">&#x21C4;</button><button class="btn-excluir" onclick="excluirGasto(&apos;'+item.id+'&apos;)" title="Excluir">&#x1F5D1;</button>')+'</div></div>';
 }).join('');
 return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+labelCategoria(cat)+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
 var totalFmt='R$ '+totalCiclo.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header"><span class="fatura-titulo">Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+('R$ '+totPes.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))+' <span style="font-size:11px;font-weight:600;opacity:.7;">pessoais</span></div>'+(totEmp>0.001?'<div style="font-size:12px;color:#666;margin-top:-4px;margin-bottom:4px;">+ reembols&aacute;vel R$ '+totEmp.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' = fatura <b>'+totalFmt.replace('R$ ','R$ ')+'</b></div>':'')+'<button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-conc-btn" style="background:#2e7d32;" onclick="abrirRelatorio('+cicloIdx+')">&#128196; Relatorio (salvar em PDF)</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm('+JSON.stringify('fatura-add-'+c.mesAno)+')">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento('+JSON.stringify(c.mesAno)+')">Salvar</button></div></div></div>';
+var aberto=!!_faturasExpandidas[c.mesAno];
+var seta='<span style="display:inline-block;transition:transform .15s ease;transform:rotate('+(aberto?90:0)+'deg);margin-right:6px;">&#9656;</span>';
+var corpoDetalhe='<button class="fatura-conc-btn" onclick="abrirConciliacao('+cicloIdx+')">&#128269; Conciliar com a fatura do banco</button><button class="fatura-conc-btn" style="background:#2e7d32;" onclick="abrirRelatorio('+cicloIdx+')">&#128196; Relatorio (salvar em PDF)</button>'+itensHtml+'<button class="fatura-add-btn" onclick="toggleAddForm(&apos;fatura-add-'+c.mesAno+'&apos;)">&#43; Adicionar lancamento</button><div id="fatura-add-'+c.mesAno+'" class="fatura-add-form"><div class="fatura-add-row"><div class="fatura-add-field"><label>Descricao</label><input type="text" id="add-desc-'+c.mesAno+'" placeholder="Ex: IOF..." /></div><div class="fatura-add-field" style="max-width:120px"><label>Valor R$</label><input type="number" step="0.01" id="add-val-'+c.mesAno+'" placeholder="0,00" /></div><div class="fatura-add-field" style="max-width:100px"><label>Categoria</label><input type="text" id="add-cat-'+c.mesAno+'" placeholder="Outros" /></div><button class="btn-add-salvar" onclick="adicionarLancamento(&apos;'+c.mesAno+'&apos;)">Salvar</button></div></div>';
+return '<div class="fatura-card '+c.tipo+'"><div class="fatura-header" onclick="_toggleFaturaCard(&apos;'+c.mesAno+'&apos;)" style="cursor:pointer;"><span class="fatura-titulo">'+seta+'Fatura '+c.label+'</span><span class="fatura-badge '+c.tipo+'">'+tipoLabel+'</span></div><div class="fatura-datas">Fecha: '+dtFech+' &nbsp;|&nbsp; Vence: '+dtVenc+'</div><div class="fatura-total">'+('R$ '+totPes.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))+' <span style="font-size:11px;font-weight:600;opacity:.7;">pessoais</span></div>'+(totEmp>0.001?'<div style="font-size:12px;color:#666;margin-top:-4px;margin-bottom:4px;">+ reembols&aacute;vel R$ '+totEmp.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' = fatura <b>'+totalFmt.replace('R$ ','R$ ')+'</b></div>':'')+(aberto?corpoDetalhe:'')+'</div>';
 }).join('');
 document.getElementById('faturaList').innerHTML=html||'<div class="hist-loading">Nenhum dado.</div>';
 var _sf=document.getElementById('screenFaturas');if(_sf)_sf.scrollTop=0;
