@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v123';
+const APP_VERSION = 'v124';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1347,6 +1347,13 @@ var md=l.match(reData);
 if(!md)return; // sem data no inicio: coluna lateral, resumo, boleto
 var resto=l.replace(md[0],'');
 if(reIgn.test(resto))return;
+// Estorno/credito ligado a um parcelamento vem com parcela "00/NN" (nunca
+// existe parcela real 00) -- sinal confiavel, ao contrario do menos no fim
+// do valor, que o pdf.js as vezes separa em "linhas" de texto diferentes e
+// faz passar como compra positiva (caso real: Temu 68010, compra nao
+// entregue e estornada, "46,91 -" virou compra fantasma de R$46,91 --
+// Marcius, 21/10/26).
+if(/\b00\s*\/\s*\d{1,2}\b/.test(resto))return;
 var vals=resto.match(reVal);
 if(!vals||!vals.length)return;
 var valStr=vals[vals.length-1];
@@ -1438,6 +1445,11 @@ var resto=l,inline=null;
 var mdi=l.match(reDiaMesInline);
 if(mdi){inline={dia:parseInt(mdi[1],10),mes:mdi[2].toUpperCase(),mesNum:null};resto=l.replace(mdi[0],' ');}
 else{var mdb=l.match(reDataBarra);if(mdb){inline={dia:parseInt(mdb[1],10),mes:null,mesNum:mdb[2]};resto=l.replace(mdb[0],' ');}}
+// Mesmo sinal de estorno/credito do parser da Fatura Mensal: parcela "00/NN"
+// (nunca existe parcela real 00) -- mais confiavel que depender do sinal de
+// menos sobreviver inteiro na extracao do pdf.js (caso real: Temu 68010,
+// compra nao entregue e estornada -- Marcius, 21/10/26).
+if(/\(\s*00\s*\/\s*\d{1,2}\s*\)/.test(resto))return;
 // 7) valor = ultimo monetario da linha
 if(!reTemVal.test(resto)) return;
 var vals=resto.match(reValG);
