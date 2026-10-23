@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v124';
+const APP_VERSION = 'v125';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -333,7 +333,14 @@ function formatarData(d) { if(!d) return '-'; return new Date(d+'T12:00:00').toL
 function formatarHora(h) { return h?h.substring(0,5):'-'; }
 function _fmtDataAssoc(iso) { if(!iso) return ''; var d=new Date(String(iso).slice(0,10)+'T12:00:00'); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR'); }
 function confirmarSugestaoIdx(i) { var s=(window._sugestoesGasto||[])[i]; if(!s) return; confirmarSugestao(s.cat,s.nome); }
-function confirmarSugestao(cat,nome) { var inp=document.getElementById('gastoApelidoInput'); if(inp&&nome) inp.value=nome; confirmarCategoria(cat); }
+// NAO sobrescreve mais o campo com o nome da sugestao -- o campo ja vem
+// pre-preenchido com esse mesmo nome por padrao (renderGasto), entao so
+// fazia diferenca quando o Marcius tinha EDITADO o nome e clicado no botao
+// de sugestao em destaque: o toque sobrescrevia o que ele digitou com o
+// nome sugerido antigo, sem ele perceber (achado 22/10/26, reproduzido:
+// digitou "Posto do Ze", salvou "Posto Xpto"). confirmarCategoria ja le o
+// valor atual do campo sozinho -- a sugestao so precisa confirmar a categoria.
+function confirmarSugestao(cat,nome) { confirmarCategoria(cat); }
 function nomeExibicao(g) { return (g.apelido&&g.apelido.trim())?g.apelido.trim():capitalizarPrimeira(g.estabelecimento||'-'); }
 // Sugestao de nome pra fornecedor NOVO: caixa-titulo do nome que veio no
 // SMS, ate 4 palavras, preposicoes minusculas. O usuario edita ou aceita.
