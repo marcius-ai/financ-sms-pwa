@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v125';
+const APP_VERSION = 'v127';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -986,7 +986,7 @@ c.fillStyle='#1a1a2e';c.fillText(txt,p.x,p.y-6);
 }
 c.restore();
 }};
-_chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:56}},responsive:true,maintainAspectRatio:false,onClick:function(evt,els,chart){var pts=chart.getElementsAtEventForMode(evt,'index',{intersect:false},true);if(!pts||!pts.length)return;var iso=dias[pts[0].index];if(!iso)return;_grafDiaSel=(_grafDiaSel===iso)?null:iso;renderGraficoPorDia(_grafFatura);setTimeout(function(){var e=document.getElementById('diaDetalhe');if(e)e.scrollIntoView({behavior:'smooth',block:'nearest'});},60);},plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}},onClick:function(evt,item,legend){var ds=legend.chart.data.datasets[item.datasetIndex];if(ds&&ds.catKey){_toggleFiltroCategoriaDia(ds.catKey);}else{var meta=legend.chart.getDatasetMeta(item.datasetIndex);meta.hidden=!meta.hidden;legend.chart.update();}}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:9,weight:'700'},maxRotation:0,autoSkip:true}},y:{stacked:true,display:false,grid:{display:false}},yAcum:{display:false,grid:{display:false},min:0}}}});
+_chartAtivo=new Chart(ctx,{type:'bar',plugins:[lblPlugin],data:{labels:labels,datasets:datasets},options:{layout:{padding:{top:56}},responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},onClick:function(evt,els,chart){if(!els||!els.length)return;var iso=dias[els[0].index];if(!iso)return;_grafDiaSel=(_grafDiaSel===iso)?null:iso;renderGraficoPorDia(_grafFatura);setTimeout(function(){var e=document.getElementById('diaDetalhe');if(e)e.scrollIntoView({behavior:'smooth',block:'nearest'});},60);},plugins:{legend:{display:true,position:'bottom',labels:{color:'#444',boxWidth:12,font:{size:10}},onClick:function(evt,item,legend){var ds=legend.chart.data.datasets[item.datasetIndex];if(ds&&ds.catKey){_toggleFiltroCategoriaDia(ds.catKey);}else{var meta=legend.chart.getDatasetMeta(item.datasetIndex);meta.hidden=!meta.hidden;legend.chart.update();}}},tooltip:{callbacks:{label:function(item){return item.dataset.label+': R$ '+item.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#444',font:{size:9,weight:'700'},maxRotation:0,autoSkip:true}},y:{stacked:true,display:false,grid:{display:false}},yAcum:{display:false,grid:{display:false},min:0}}}});
 }
 function voltarCategorias(){
 if(_grafOrigemComp){
