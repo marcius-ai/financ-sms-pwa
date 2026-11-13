@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v127';
+const APP_VERSION = 'v128';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1884,12 +1884,19 @@ carregarFaturas(document.getElementById('inputFechamento').value);
 // dia 14 ainda nao entraram na fatura do banco mas ja estao confirmadas no
 // app -- excluir apagaria o gasto de vez, nao so adiaria pro mes certo).
 function _proximoMesAno(){
-if(!_conciliarCiclo||!_faturasCiclos||!_faturasCiclos.length)return null;
-var idx=-1;
-for(var i=0;i<_faturasCiclos.length;i++){if(_faturasCiclos[i].mesAno===_conciliarCiclo.mesAno){idx=i;break;}}
-if(idx<0||idx+1>=_faturasCiclos.length)return null;
-var p=_faturasCiclos[idx+1];
-return {mesAno:p.mesAno,label:p.label};
+// Antes buscava o ciclo seguinte dentro de _faturasCiclos (por indice ou por
+// mesAno) -- fragil: se o array estivesse desatualizado/recalculado desde
+// que o modal abriu (ex.: carregarFaturas rodou de novo em outra aba/acao),
+// a busca falhava e sumia o botao "Manter" inteiro, mesmo com o ciclo atual
+// tendo sim um mes seguinte obvio. Calcula direto a partir do mesAno do
+// ciclo sendo conciliado -- nao depende de mais nada (Marcius, 13/11/26).
+if(!_conciliarCiclo||!_conciliarCiclo.mesAno)return null;
+var partes=String(_conciliarCiclo.mesAno).split('-');
+var ano=parseInt(partes[0],10),mes=parseInt(partes[1],10);
+if(!ano||!mes)return null;
+var d=new Date(ano,mes,1);
+var mesAno=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+return {mesAno:mesAno,label:d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})};
 }
 async function manterProximaFatura(ai,btn){
 var st=_concEstado;if(!st)return;
