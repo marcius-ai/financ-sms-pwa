@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v128';
+const APP_VERSION = 'v129';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1110,7 +1110,7 @@ function getCicloFechamentos(fechAtualStr,proximoStr){var fAt=new Date(fechAtual
 function atualizarVencimento(fechamento){var proximoStr=localStorage.getItem('proximo_fechamento')||'';var d=new Date(fechamento+'T12:00:00');var prx=proximoStr?new Date(proximoStr+'T12:00:00'):new Date(d.getFullYear(),d.getMonth()+1,d.getDate());var mesVenc=new Date(prx.getFullYear(),prx.getMonth(),25);document.getElementById('faturaVencimento').textContent='Fatura atual fecha: '+prx.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})+' • vence: '+mesVenc.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});var elPCF=document.getElementById('proximoCicloFaturas');if(elPCF){elPCF.innerHTML='<span style="color:#555;font-weight:600;">Fatura atual:</span> fecha em '+prx.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})+' &bull; vence em 25 de '+prx.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});}}
 async function carregarFaturas(fechamentoAtual){document.getElementById('faturaList').innerHTML='<div class="hist-loading">Carregando...</div>';try{var res=await fetch(API+'/gastos/confirmados');if(!res.ok) throw new Error('HTTP '+res.status);renderFaturas(await res.json(),fechamentoAtual);}catch(e){document.getElementById('faturaList').innerHTML='<div class="hist-loading">Erro ao carregar gastos.</div>';}}
 function calcFaturaId(dataCompra,ciclos){for(var i=0;i<ciclos.length;i++){if(dataCompra>=ciclos[i].inicio&&dataCompra<=ciclos[i].fechamento) return i;}return -1;}
-async function excluirGasto(id){if(!confirm('Excluir este lancamento?')) return;try{var r=await fetch(API+'/gastos/'+id,{method:'DELETE'});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao excluir: '+e.message);}}
+async function excluirGasto(id,parcAtual){if(!confirm('Excluir este lancamento?')) return;try{var url=API+'/gastos/'+id+((parcAtual&&parcAtual>1)?('?parcela='+parcAtual):'');var r=await fetch(url,{method:'DELETE'});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao excluir: '+e.message);}}
 async function editarValor(id,valorAtual){var novoStr=prompt('Novo valor (R$):',String(valorAtual).replace('.',','));if(novoStr===null) return;var novo=parseFloat(novoStr.replace(',','.'));if(isNaN(novo)||novo<=0){alert('Valor invalido');return;}try{var r=await fetch(API+'/gastos/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novo})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao editar: '+e.message);}}
 async function moverFatura(gastoId,cicloIdx){var c=_faturasCiclos[cicloIdx];if(!c) return;var mesAtual=c.mesAno,parts=mesAtual.split('-'),ano=parseInt(parts[0]),mes=parseInt(parts[1]),mesAnt=mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0'),mesProx=mes===12?(ano+1)+'-01':ano+'-'+String(mes+1).padStart(2,'0'),escolha=confirm('Mover para qual fatura? OK=Anterior ('+mesAnt+') Cancelar=Proxima ('+mesProx+')'),novoMes=escolha?mesAnt:mesProx;try{var r=await fetch(API+'/gastos/'+gastoId+'/fatura',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mes_ano:novoMes})});if(!r.ok) throw new Error('Erro '+r.status);carregarFaturas(document.getElementById('inputFechamento').value);}catch(e){alert('Erro ao mover: '+e.message);}}
 function toggleAddForm(formId){var el=document.getElementById(formId);if(el) el.classList.toggle('visible');}
@@ -1868,8 +1868,14 @@ var st=_concEstado;if(!st)return;
 var a=st.app[ai];if(!a||!a.id)return;
 if(!confirm('Excluir "'+a.nome+'" ('+_fmtC(a.valor)+')? Esse lancamento nao esta na fatura do banco.'))return;
 _flashLinha(btn);
+// Se for parcela >1 de uma compra travada (parcela anterior ja fechou -- ex.:
+// compra cancelada/estornada no meio do parcelamento), manda a parcela atual
+// pro backend truncar a compra ali em vez de so bloquear com 423 (Marcius,
+// 14/11/26 -- caso real do Temu que ficou preso faturas e faturas seguidas).
+var parcAtual=(a.parcTot>1&&a.parc)?parseInt(String(a.parc).split('/')[0]):null;
 try{
-var r=await fetch(API+'/gastos/'+a.id,{method:'DELETE'});
+var url=API+'/gastos/'+a.id+((parcAtual&&parcAtual>1)?('?parcela='+parcAtual):'');
+var r=await fetch(url,{method:'DELETE'});
 if(!r.ok)throw new Error('HTTP '+r.status);
 a.usado=true;
 showToast('Excluido','success');
@@ -2158,7 +2164,7 @@ var itensDetalhe=sorted.map(function(item){var parcTag=item.parcTotal>1?'<span c
 var dtItem=item.dataCompra?item.dataCompra.slice(8,10)+'/'+item.dataCompra.slice(5,7):'',hrItem=item.hora?item.hora.substring(0,5):'';
 return '<div class="fatura-item"><div class="fatura-item-nome-wrap"><span class="fatura-item-nome">'+nomeExib+parcTag+cartaoTag+'</span><span style="font-size:10px;color:#999;">'+dtItem+(hrItem?' '+hrItem:'')+'</span>'+(hasApelido?'<span class="fatura-item-nome-orig">'+(item.estabelecimento||'')+'</span>':'')+'</div><div class="fatura-item-actions">'+(item.travado
 ?'<span class="fatura-item-valor" title="Fatura fechada e conciliada">'+valorFmt+'</span><span title="Fatura fechada e conciliada: lancamento travado" style="font-size:12px;opacity:.7;">&#128274;</span>'
-:'<span class="fatura-item-valor" onclick="editarValor(&apos;'+item.id+'&apos;,'+item.valor+')" title="Editar valor">'+valorFmt+'</span><button class="btn-excluir" onclick="moverFatura(&apos;'+item.id+'&apos;,'+cicloIdx+');" title="Mover fatura" style="font-size:12px">&#x21C4;</button><button class="btn-excluir" onclick="excluirGasto(&apos;'+item.id+'&apos;)" title="Excluir">&#x1F5D1;</button>')+'</div></div>';
+:'<span class="fatura-item-valor" onclick="editarValor(&apos;'+item.id+'&apos;,'+item.valor+')" title="Editar valor">'+valorFmt+'</span><button class="btn-excluir" onclick="moverFatura(&apos;'+item.id+'&apos;,'+cicloIdx+');" title="Mover fatura" style="font-size:12px">&#x21C4;</button><button class="btn-excluir" onclick="excluirGasto(&apos;'+item.id+'&apos;,'+(item.parcTotal>1?item.parcAtual:0)+')" title="Excluir">&#x1F5D1;</button>')+'</div></div>';
 }).join('');
 return '<div class="fatura-cat-group"><div class="fatura-cat-header"><span class="fatura-cat-name" style="border-left:3px solid '+catColor+'">'+labelCategoria(cat)+'</span><span class="fatura-cat-subtotal">'+catSubtotalFmt+'</span></div>'+itensDetalhe+'</div>';
 }).join('');}
