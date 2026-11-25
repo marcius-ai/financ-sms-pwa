@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v129';
+const APP_VERSION = 'v130';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1429,10 +1429,82 @@ if(Math.abs(soma-itens.totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+
 itens.conferencia=conf;
 return itens;
 }
+// Formato "resumo por cartao" (visto 25/11/26) -- export do proprio app do
+// Bradesco, NAO o extrato/fatura mensal de sempre. Lista com bolinha por
+// lancamento, dividida em secoes "Gastos referentes ao cartao: Final NNNN |
+// NOME ... Valor da fatura: R$ X". Pedido do Marcius foi "a estrutura de
+// fatura e sempre data+fornecedor+valor" -- certo em espirito, mas ESSE
+// formato especifico nao traz data NENHUMA por lancamento (so "(N/M)" de
+// parcela). Sem data pra casar, o jeito e casar por nome+valor (_diffDias
+// trata ddmm vazio como neutro, nao mais reprovacao automatica).
+function _parseFaturaResumoSemData(linhas,texto){
+var reSecFinal=/\bfinal\s*(\d{4})\s*\|/i;
+var reNome=/\|\s*([A-ZÀ-Ú][A-ZÀ-Ú\s\.]{3,}?)(?:\s+Valor\s+da\s+fatura|\s*$)/i;
+var reVal=/-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+var reParcParen=/\(\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)/;
+var reNaoCompra=/^(SALDO ANTERIOR|PAG(TO|AMENTO)?\b|PAG BOLETO|CREDITO|ESTORNO)/i;
+var ignorar=/(VALOR DA FATURA|TOTAL DA FATURA|FATURA ANTERIOR|DATA DE VENCIMENTO|VALIDADE|MELHOR DATA|FORMA DE PAGAMENTO|COTA[CÇ][AÃ]O|MOEDA DE ORIGEM|N[AÃ]O POSSUI LAN|CART[AÃ]O SELECIONADO)/i;
+var reRodape=/^(Resumo das Despesas|Total da fatura \(final|Taxas Mensais)/i;
+var cartaoAtual='',nomeAtual='',totaisCartao={},pagos={},itens=[],fim=false;
+linhas.forEach(function(l){
+if(!l||fim)return;
+if(reRodape.test(l)){fim=true;return;}
+var mf=l.match(reSecFinal);
+if(mf){
+cartaoAtual=mf[1];
+var mn=l.match(reNome);nomeAtual=mn?String(mn[1]).trim():'';
+var mt=l.match(/valor da fatura:?\s*(-?)\s*R\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+if(mt&&cartaoAtual)totaisCartao[cartaoAtual]=parseFloat(mt[2].replace(/\./g,'').replace(',','.'))*(mt[1]==='-'?-1:1);
+return;
+}
+if(ignorar.test(l)||!cartaoAtual)return; // header de coluna, ou texto antes da 1a secao
+if(reNaoCompra.test(l)){
+var mv=l.match(reVal);
+if(mv){var vv=parseFloat(String(mv[mv.length-1]).replace(/\./g,'').replace(',','.'));
+if(vv<0)pagos[cartaoAtual]=(pagos[cartaoAtual]||0)+vv;}
+return;
+}
+var vals=l.match(reVal);
+if(!vals||!vals.length)return;
+var valStr=vals[vals.length-1];
+var valor=parseFloat(valStr.replace(/\./g,'').replace(',','.'));
+if(!valor||valor<=0)return;
+// Compra internacional tem colunas extras antes do valor em R$ (Moeda de
+// Origem/Cotacao, tipo "RAILWAY USD 22,66 22.66 5.75 130,30") -- corta a
+// descricao a partir do PRIMEIRO numero, nao do ultimo, senao sobra lixo
+// de coluna colado no nome.
+var resto=l.slice(0,l.indexOf(vals[0]));
+var parc='';
+var mp=resto.match(reParcParen);
+if(mp){parc=_pad2(mp[1])+'/'+_pad2(mp[2]);resto=resto.replace(mp[0],' ');}
+var desc=resto.replace(/\bUSD\b.*$/i,'').replace(/\s+/g,' ').trim();
+if(desc.replace(/[^A-Za-zÀ-ÿ]/g,'').length<3)return;
+itens.push({data:'',valor:valor,descricao:desc.slice(0,40),parcela:parc,cartao:cartaoAtual,nome:nomeAtual});
+});
+var mtf=String(texto||'').match(/\(=\)\s*Total da fatura:?\s*-?R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+itens.totalFatura=mtf?parseFloat(mtf[1].replace(/\./g,'').replace(',','.')):null;
+var conf=[];
+Object.keys(totaisCartao).forEach(function(c){
+var lst=itens.filter(function(x){return x.cartao===c;});
+if(!lst.length)return; // secao sem lancamento (ex.: cartao cancelado com so um encargo residual nao itemizado): nada a conferir
+if(pagos[c])return;
+var lido=lst.reduce(function(a,x){return a+x.valor;},0);
+if(Math.abs(lido-totaisCartao[c])>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+totaisCartao[c].toFixed(2));
+});
+if(itens.totalFatura!=null){
+var soma=itens.reduce(function(a,x){return a+x.valor;},0);
+if(Math.abs(soma-itens.totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+', banco diz '+itens.totalFatura.toFixed(2));
+}
+itens.conferencia=conf;
+return itens;
+}
 function _parseFaturaTextoLocal(texto){
 var linhas=String(texto||'').split('\n').map(function(s){return String(s||'').replace(/\s+/g,' ').trim();});
 if(/Hist[oó]rico de Lan[cç]amentos/i.test(texto)&&/N[uú]mero do Cart[aã]o/i.test(texto)){
 return _parseFaturaMensal(linhas,texto);
+}
+if(/Cartao selecionado/i.test(texto)&&/Melhor data de compra/i.test(texto)){
+return _parseFaturaResumoSemData(linhas,texto);
 }
 // --- cabecalho de secao de cartao (SEMPRE tratado como cabecalho, mesmo tendo valor)
 var reSecGastos=/gastos?\s+referentes?\s+ao\s+cart[aã]o/i;
@@ -1608,7 +1680,13 @@ function _simNome(a,b){a=_normNome(a);b=_normNome(b);if(!a||!b)return 0;if(a===b
 var ca=a.replace(/ /g,''),cb=b.replace(/ /g,'');
 if(ca.length>=4&&cb.length>=4&&(ca.indexOf(cb)>=0||cb.indexOf(ca)>=0))return 0.85;
 var ta=a.split(' ').filter(function(t){return t.length>=3;}),tb=b.split(' ').filter(function(t){return t.length>=3;});if(!ta.length||!tb.length)return 0;var h=0;ta.forEach(function(t){if(tb.some(function(u){return u===t||u.indexOf(t)===0||t.indexOf(u)===0;}))h++;});return h/Math.max(ta.length,tb.length);}
-function _diffDias(iso,ddmm){if(!iso||!ddmm)return 999;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
+// ddmm vazio = o formato da fatura nao tem coluna de data nenhuma (visto
+// 25/11/26, export "resumo por cartao" do Bradesco, so parcela entre
+// parenteses). Sem isso o casamento nunca rolava pra esse formato (999 =
+// sempre reprovado) -- trata como "sem penalidade", casamento cai todo pro
+// nome+valor (que ja e exigido com tolerancia estrita nas duas funcoes que
+// chamam isso).
+function _diffDias(iso,ddmm){if(!iso)return 999;if(!ddmm)return 0;var pa=String(iso).split('-');if(pa.length!==3)return 999;var ps=String(ddmm).split('/');if(ps.length<2)return 999;var ay=parseInt(pa[0]);var A=new Date(ay,parseInt(pa[1])-1,parseInt(pa[2]));var best=999;[ay-1,ay,ay+1].forEach(function(y){var S=new Date(y,parseInt(ps[1])-1,parseInt(ps[0]));var d=Math.abs((S-A)/86400000);if(d<best)best=d;});return Math.round(best);}
 function _fmtC(v){return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 // Feedback visual imediato ao tocar numa acao de conciliacao: sem isso o
 // clique so tem efeito visivel quando o redesenho inteiro da tela acontece
