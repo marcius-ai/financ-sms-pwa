@@ -301,7 +301,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v137';
+const APP_VERSION = 'v138';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1449,6 +1449,8 @@ if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it
 }
 _concTextoBruto=texto;
 _concTotaisCartao=extrato.totaisCartao||null;
+_concNomesCartao=extrato.nomesCartao||null;
+_concTotalFatura=(extrato.totalFatura!=null)?extrato.totalFatura:null;
 _concFechamentoDetectado=_detectarProximoFechamento(texto);
 if(extrato.length===0){out.innerHTML=_htmlTextoBruto(texto,'Nao consegui identificar os lancamentos.');return;}
 _concExtratoBruto=extrato;
@@ -1566,7 +1568,7 @@ var reParcParen=/\(\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\)/;
 var reNaoCompra=/^(SALDO ANTERIOR|PAG(TO|AMENTO)?\b|PAG BOLETO|CREDITO|ESTORNO)/i;
 var ignorar=/(VALOR DA FATURA|TOTAL DA FATURA|FATURA ANTERIOR|DATA DE VENCIMENTO|VALIDADE|MELHOR DATA|FORMA DE PAGAMENTO|COTA[CÇ][AÃ]O|MOEDA DE ORIGEM|N[AÃ]O POSSUI LAN|CART[AÃ]O SELECIONADO)/i;
 var reRodape=/^(Resumo das Despesas|Total da fatura \(final|Taxas Mensais)/i;
-var cartaoAtual='',nomeAtual='',totaisCartao={},pagos={},itens=[],fim=false;
+var cartaoAtual='',nomeAtual='',totaisCartao={},nomesCartao={},pagos={},itens=[],fim=false;
 linhas.forEach(function(l){
 if(!l||fim)return;
 if(reRodape.test(l)){fim=true;return;}
@@ -1574,6 +1576,7 @@ var mf=l.match(reSecFinal);
 if(mf){
 cartaoAtual=mf[1];
 var mn=l.match(reNome);nomeAtual=mn?String(mn[1]).trim():'';
+if(cartaoAtual&&nomeAtual)nomesCartao[cartaoAtual]=nomeAtual;
 var mt=l.match(/valor da fatura:?\s*(-?)\s*R\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i);
 if(mt&&cartaoAtual)totaisCartao[cartaoAtual]=parseFloat(mt[2].replace(/\./g,'').replace(',','.'))*(mt[1]==='-'?-1:1);
 return;
@@ -1629,6 +1632,7 @@ itens.conferencia=conf;
 // R$8.128,87). A conciliacao usa este numero como "fatura do banco" -- bate
 // exato com o total do app -- e trata a sobra como "nao detalhado".
 itens.totaisCartao=totaisCartao;
+itens.nomesCartao=nomesCartao;
 return itens;
 }
 function _parseFaturaTextoLocal(texto){
@@ -1791,7 +1795,7 @@ showToast('Lancamento adicionado','success');
 _desenharConciliacao();
 }catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
-var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null,_concTotaisCartao=null,_concNaoDetalhado=0;
+var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null,_concTotaisCartao=null,_concNaoDetalhado=0,_concNomesCartao=null,_concTotalFatura=null,_concBaseBanco=null;
 async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
 function _aplicarFiltroCartao(){
 var bruto=_concExtratoBruto||[];
@@ -2214,21 +2218,31 @@ var totExt=st.ext.reduce(function(s,e,i){return s+((!e.usado||paredEi[i])?e.valo
 // Somar so as linhas criava uma divergencia de R$477,43 que nao existe: o
 // total declarado dos cartoes do Marcius bate EXATO com o total do app.
 // A sobra vira _concNaoDetalhado, exibida como aviso -- nunca como diferenca.
-// IMPORTANTE: a sobra nao detalhada e calculada contra a soma de TODAS as
-// linhas lidas (nao a soma filtrada acima). Se usasse a filtrada, cada item
-// que o usuario excluisse/adiasse aumentaria a "sobra" na mesma medida e o
-// total do banco nunca mudaria -- mascarando a acao dele.
-_concNaoDetalhado=0;
+// LADO DO BANCO = TOTAL DA FATURA menos os cartoes que NAO sao meus.
+// Formula do Marcius (26/11/26), e ela corrige um defeito de metodo grave da
+// versao anterior: antes eu fazia "linhas impressas + complemento", onde o
+// complemento era (declarado - linhas lidas). Como os itens que sobram no
+// app sao exatamente os que o banco nao imprimiu, esse complemento cancelava
+// a sobra por construcao e o zero a zero saia FORCADO -- se o app estivesse
+// faltando um lancamento de verdade, dava zero do mesmo jeito e escondia.
+// Agora os dois lados vem de fontes independentes: o do banco sai so de
+// numeros declarados por ele; o do app, dos lancamentos. Se nao bater, aparece.
+_concNaoDetalhado=0;_concBaseBanco=null;
 if(_concTotaisCartao){
-var declarado=0,temDeclarado=false;
+var outros=0,temOutros=false,meus=0,temMeus=false;
 Object.keys(_concTotaisCartao).forEach(function(c){
-if(_meusCartoes&&_meusCartoes.length&&_meusCartoes.indexOf(String(c))<0)return;
-declarado+=_concTotaisCartao[c];temDeclarado=true;
+var meu=!(_meusCartoes&&_meusCartoes.length)||_meusCartoes.indexOf(String(c))>=0;
+if(meu){meus+=_concTotaisCartao[c];temMeus=true;}
+else{outros+=_concTotaisCartao[c];temOutros=true;}
 });
-if(temDeclarado){
+var base=null;
+if(_concTotalFatura!=null&&temOutros)base={modo:'subtracao',total:_concTotalFatura,outros:outros,valor:_concTotalFatura-outros};
+else if(temMeus)base={modo:'soma',valor:meus};
+if(base){
+_concBaseBanco=base;
 var somaTodas=st.ext.reduce(function(s,e){return s+e.valor;},0);
-var sobra=declarado-somaTodas;
-if(sobra>0.005){_concNaoDetalhado=sobra;totExt+=sobra;}
+if(base.valor-somaTodas>0.005)_concNaoDetalhado=base.valor-somaTodas;
+totExt=base.valor;
 }
 }
 return {totApp:totApp,totExt:totExt};
@@ -2328,11 +2342,18 @@ if(sobra.length)html+=linhaT('&#128993; S&oacute; no app, n&atilde;o veio na fat
 if(falta.length)html+=linhaT('&#128308; S&oacute; na fatura, falta no app ('+falta.length+')',somaFalta,'#ef9a9a');
 html+='<tr><td colspan="2" style="border-top:1px solid rgba(255,255,255,0.25);padding-top:4px;"></td></tr>';
 html+=linhaT('<b>Total no app</b>',totApp);
-if(_concNaoDetalhado>0.005){
-html+=linhaT('Linhas impressas na fatura',totExt-_concNaoDetalhado,'rgba(255,255,255,0.75)',true);
-html+=linhaT('+ cobrado pelo banco, n&atilde;o impresso',_concNaoDetalhado,'rgba(255,255,255,0.75)',true);
+// Conta do lado do banco aberta, do jeito que o Marcius confere: total da
+// fatura menos os cartoes dos outros. Fica auditavel linha a linha em vez
+// de aparecer um total pronto que ele tem que acreditar.
+if(_concBaseBanco&&_concBaseBanco.modo==='subtracao'){
+html+=linhaT('Total da fatura (todos os cart&otilde;es)',_concBaseBanco.total,'rgba(255,255,255,0.75)',true);
+Object.keys(_concTotaisCartao||{}).forEach(function(cc){
+if(!(_meusCartoes&&_meusCartoes.length)||_meusCartoes.indexOf(String(cc))>=0)return;
+var nm=(_concNomesCartao&&_concNomesCartao[cc])?' ('+_escHtml(String(_concNomesCartao[cc]).split(' ')[0])+')':'';
+html+=linhaT('&minus; cart&atilde;o '+cc+nm,-_concTotaisCartao[cc],'rgba(255,255,255,0.75)',true);
+});
 }
-html+=linhaT('<b>Total declarado pelo banco</b>',totExt);
+html+=linhaT('<b>Fatura dos seus cart&otilde;es</b>',totExt);
 // Cartao SEU que o banco cobra mas nao lista NENHUM lancamento (caso do
 // 4648: declara R$4,56 de IOF e escreve "voce ainda nao possui
 // lancamentos"). O valor ja entra no total declarado acima, mas antes isso
