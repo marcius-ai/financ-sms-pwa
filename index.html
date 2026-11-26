@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v133';
+const APP_VERSION = 'v134';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1328,9 +1328,15 @@ if(!window.pdfjsLib) throw new Error('Leitor de PDF nao carregou. Feche e reabra
 texto=await _extrairTextoPDF(file);
 if(!texto||texto.length<10) throw new Error('Nao consegui ler texto do PDF (pode ser imagem digitalizada).');
 extrato=_parseFaturaTextoLocal(texto);
-_concConferencia=(extrato.conferencia&&extrato.conferencia.length)
+// Quando os totais por cartao vem declarados, a conciliacao ja usa ELES
+// como referencia e identifica item a item o que o banco nao listou -- o
+// alarme vermelho de "leitura nao confere" ali em cima vira so ruido
+// (assustava dizendo que a leitura estava errada quando nao estava).
+// Nesse caso o aviso fica informativo, e a tabela do resumo explica a conta.
+var _temDecl=extrato.totaisCartao&&Object.keys(extrato.totaisCartao).length;
+_concConferencia=(extrato.conferencia&&extrato.conferencia.length&&!_temDecl)
 ?{ok:false,msg:'Leitura NAO confere com o banco: '+extrato.conferencia.join('; ')}
-:(extrato.totalFatura!=null?{ok:true,msg:'Leitura confere com o total declarado pelo banco ('+formatarValor(extrato.totalFatura)+')'}:null);
+:(extrato.totalFatura!=null?{ok:true,msg:'Total declarado pelo banco: '+formatarValor(extrato.totalFatura)+(_temDecl?' (comparo pelos totais que o banco declara por cartao)':'')}:null);
 if(extrato.length===0){
 var res=await fetch(API+'/fatura/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto})});
 if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it){return it&&it.valor;});}
@@ -2185,17 +2191,43 @@ html+='<div style="font-size:28px;font-weight:900;margin-bottom:8px;">'+fmt(totP
 if(totEmpApp>0.001){
 html+='<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:8px;">+ reembols&aacute;vel '+fmt(totEmpApp)+' &nbsp;=&nbsp; total do cart&atilde;o '+fmt(totApp)+'</div>';
 }
+// Tabela de conciliacao de verdade, em vez de linhas soltas de texto
+// (pedido do Marcius, 26/11/26: "e muita informacao escrita numa linha, sem
+// uma tabela clara"). Mostra a conta inteira aberta -- quanto bateu, o que
+// so tem no app, o que so tem no banco -- pra diferenca SAIR da conta em
+// vez de ser um numero ajustado por tras (ele pegou exatamente isso: "voce
+// esta querendo forcar um numero. Na verdade nao tem que forcar").
+var somaPares=st.pares.reduce(function(s,p){var e=st.ext[p.ei];return s+(e?e.valor:0);},0);
+var somaSobra=sobra.reduce(function(s,o){return s+o.a.valor;},0);
+var somaFalta=falta.reduce(function(s,o){return s+o.e.valor;},0);
+var somaSug=sug.reduce(function(s,p){var a=st.app[p.ai];return s+(a?a.valor:0);},0);
+function linhaT(rot,val,cor,peq){
+return '<tr><td style="padding:3px 0;font-size:'+(peq?11:12.5)+'px;color:'+(cor||'rgba(255,255,255,0.9)')+';">'+rot+'</td>'
++'<td style="padding:3px 0;text-align:right;font-size:'+(peq?11:12.5)+'px;font-variant-numeric:tabular-nums;color:'+(cor||'#fff')+';">'+fmt(val)+'</td></tr>';
+}
 html+='<div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;">';
-html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App (total do cart&atilde;o)</span><span>'+fmt(totApp)+'</span></div>';
-html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div>';
+html+='<table style="width:100%;border-collapse:collapse;">';
+html+=linhaT('&#10003; Bateram com a fatura ('+st.pares.length+')',somaPares,'#a5d6a7');
+if(sug.length)html+=linhaT('&#9888; A confirmar ('+sug.length+')',somaSug,'#ffe082');
+if(sobra.length)html+=linhaT('&#128993; S&oacute; no app, n&atilde;o veio na fatura ('+sobra.length+')',somaSobra,'#ffcc80');
+if(falta.length)html+=linhaT('&#128308; S&oacute; na fatura, falta no app ('+falta.length+')',somaFalta,'#ef9a9a');
+html+='<tr><td colspan="2" style="border-top:1px solid rgba(255,255,255,0.25);padding-top:4px;"></td></tr>';
+html+=linhaT('<b>Total no app</b>',totApp);
 if(_concNaoDetalhado>0.005){
-html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>&#8627; inclui '+fmt(_concNaoDetalhado)+' que o banco cobrou mas nao listou</span><span></span></div>';
+html+=linhaT('Linhas impressas na fatura',totExt-_concNaoDetalhado,'rgba(255,255,255,0.75)',true);
+html+=linhaT('+ cobrado pelo banco, n&atilde;o impresso',_concNaoDetalhado,'rgba(255,255,255,0.75)',true);
 }
-if(Math.abs(arred)>0.001){
-html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>Arredondamento de parcelas (ja casadas)</span><span>'+fmt(arred)+'</span></div>';
+html+=linhaT('<b>Total declarado pelo banco</b>',totExt);
+if(Math.abs(arred)>0.001)html+=linhaT('Arredondamento de parcelas',arred,'rgba(255,255,255,0.6)',true);
+html+='</table>';
+html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;margin-top:4px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
+// Quando a sobra do app explica EXATAMENTE o que o banco cobrou sem listar,
+// diz isso na cara: esses itens nao sao erro do Marcius, sao linha que o
+// PDF do banco nao imprimiu (caso real nov/26: os 5 itens somavam 477,43,
+// o mesmo que faltava pra fechar o total declarado).
+if(_concNaoDetalhado>0.005&&sobra.length&&Math.abs(somaSobra-_concNaoDetalhado)<=0.05){
+html+='<div style="background:rgba(255,255,255,0.12);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:11px;line-height:1.45;">&#128161; Os '+sobra.length+' itens “s&oacute; no app” somam '+fmt(somaSobra)+' &mdash; exatamente o que o banco cobrou e <b>n&atilde;o listou</b> no PDF. Seus lan&ccedil;amentos est&atilde;o certos; o extrato e que nao imprimiu essas linhas.</div>';
 }
-html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
-html+='<div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:center;margin-top:6px;">&#10003; '+st.pares.length+' conciliados &bull; '+sug.length+' a confirmar &bull; '+falta.length+' faltando &bull; '+sobra.length+' sobrando</div>';
 html+='</div></div>';
 // Barra de progresso: sem isso nao dava pra ver de cara quanto ja avancou
 // numa fatura longa -- so o texto pequeno acima, sem hierarquia visual.
