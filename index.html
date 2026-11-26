@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v132';
+const APP_VERSION = 'v133';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1337,6 +1337,7 @@ if(res.ok){var data=await res.json();extrato=(data.itens||[]).filter(function(it
 }
 }
 _concTextoBruto=texto;
+_concTotaisCartao=extrato.totaisCartao||null;
 _concFechamentoDetectado=_detectarProximoFechamento(texto);
 if(extrato.length===0){out.innerHTML=_htmlTextoBruto(texto,'Nao consegui identificar os lancamentos.');return;}
 _concExtratoBruto=extrato;
@@ -1510,6 +1511,13 @@ var soma=itens.reduce(function(a,x){return a+x.valor;},0);
 if(Math.abs(soma-itens.totalFatura)>0.05)conf.push('total: li '+soma.toFixed(2)+', banco diz '+itens.totalFatura.toFixed(2));
 }
 itens.conferencia=conf;
+// Total que o BANCO declara por cartao, separado da soma das linhas: nesse
+// formato o export as vezes declara o total do cartao sem imprimir todos os
+// lancamentos (caso real 26/11/26: cartao 4648 declara R$4,56 e escreve
+// "Voce ainda nao possui lancamentos"; 7431 declara R$8.601,74 mas so lista
+// R$8.128,87). A conciliacao usa este numero como "fatura do banco" -- bate
+// exato com o total do app -- e trata a sobra como "nao detalhado".
+itens.totaisCartao=totaisCartao;
 return itens;
 }
 function _parseFaturaTextoLocal(texto){
@@ -1672,7 +1680,7 @@ showToast('Lancamento adicionado','success');
 _desenharConciliacao();
 }catch(err){_desfazerFlash(btn);showToast('Erro: '+err.message,'error');}
 }
-var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null;
+var _concEstado=null,_concExtratoBruto=null,_meusCartoes=null,_concIgnorados=0,_concCartoesUsados=[],_concMostrarOk=false,_concMaiores=[],_concConferencia=null,_concTotaisCartao=null,_concNaoDetalhado=0;
 async function _carregarMeusCartoes(){if(_meusCartoes)return _meusCartoes;try{var r=await fetch(API+'/cartoes');var d=await r.json();_meusCartoes=(d.cartoes||[]).map(function(c){return String(c).trim();});}catch(e){_meusCartoes=[];}return _meusCartoes;}
 function _aplicarFiltroCartao(){
 var bruto=_concExtratoBruto||[];
@@ -2088,6 +2096,30 @@ var paredAi={},paredEi={};
 st.pares.forEach(function(p){paredAi[p.ai]=1;paredEi[p.ei]=1;});
 var totApp=st.app.reduce(function(s,a,i){return s+((!a.usado||paredAi[i])?a.valor:0);},0);
 var totExt=st.ext.reduce(function(s,e,i){return s+((!e.usado||paredEi[i])?e.valor:0);},0);
+// O "quanto o banco esta cobrando" é o total que o BANCO DECLARA por cartao,
+// nao a soma das linhas que ele imprimiu: esse export as vezes declara o
+// total e nao lista tudo (26/11/26 -- 4648 declara R$4,56 escrevendo "voce
+// ainda nao possui lancamentos"; 7431 declara 8.601,74 e so lista 8.128,87).
+// Somar so as linhas criava uma divergencia de R$477,43 que nao existe: o
+// total declarado dos cartoes do Marcius bate EXATO com o total do app.
+// A sobra vira _concNaoDetalhado, exibida como aviso -- nunca como diferenca.
+// IMPORTANTE: a sobra nao detalhada e calculada contra a soma de TODAS as
+// linhas lidas (nao a soma filtrada acima). Se usasse a filtrada, cada item
+// que o usuario excluisse/adiasse aumentaria a "sobra" na mesma medida e o
+// total do banco nunca mudaria -- mascarando a acao dele.
+_concNaoDetalhado=0;
+if(_concTotaisCartao){
+var declarado=0,temDeclarado=false;
+Object.keys(_concTotaisCartao).forEach(function(c){
+if(_meusCartoes&&_meusCartoes.length&&_meusCartoes.indexOf(String(c))<0)return;
+declarado+=_concTotaisCartao[c];temDeclarado=true;
+});
+if(temDeclarado){
+var somaTodas=st.ext.reduce(function(s,e){return s+e.valor;},0);
+var sobra=declarado-somaTodas;
+if(sobra>0.005){_concNaoDetalhado=sobra;totExt+=sobra;}
+}
+}
 return {totApp:totApp,totExt:totExt};
 }
 function _desenharConciliacao(){
@@ -2156,6 +2188,9 @@ html+='<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:8px;
 html+='<div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;">';
 html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>App (total do cart&atilde;o)</span><span>'+fmt(totApp)+'</span></div>';
 html+='<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span>Fatura do banco</span><span>'+fmt(totExt)+'</span></div>';
+if(_concNaoDetalhado>0.005){
+html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>&#8627; inclui '+fmt(_concNaoDetalhado)+' que o banco cobrou mas nao listou</span><span></span></div>';
+}
 if(Math.abs(arred)>0.001){
 html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:3px;"><span>Arredondamento de parcelas (ja casadas)</span><span>'+fmt(arred)+'</span></div>';
 }
