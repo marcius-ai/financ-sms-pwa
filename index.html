@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v131';
+const APP_VERSION = 'v132';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1496,7 +1496,12 @@ var conf=[];
 Object.keys(totaisCartao).forEach(function(c){
 var lst=itens.filter(function(x){return x.cartao===c;});
 if(!lst.length)return; // secao sem lancamento (ex.: cartao cancelado com so um encargo residual nao itemizado): nada a conferir
-if(pagos[c])return;
+// NAO se cala com pagamento misturado aqui (diferente dos outros 2
+// formatos): pagamento/saldo anterior ja saem do calculo de "lido" antes
+// de chegar aqui (pagos[c] so serve de registro, nunca entra em itens) --
+// calar a checagem so escondia diferenca de verdade (achado com o
+// Marcius, 26/11/26: cartao 7431 tinha R$472,87 nao itemizados pelo banco
+// e a checagem nunca acusava por causa dessa supressao).
 var lido=lst.reduce(function(a,x){return a+x.valor;},0);
 if(Math.abs(lido-totaisCartao[c])>0.05)conf.push('cartao '+c+': li '+lido.toFixed(2)+', banco diz '+totaisCartao[c].toFixed(2));
 });
