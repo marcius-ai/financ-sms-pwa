@@ -285,7 +285,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v130';
+const APP_VERSION = 'v131';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -1211,7 +1211,16 @@ _relCiclo=_grafFatura;abrirRelatorio(-1);
 }
 function fecharConciliacao(e){if(e&&e.target!==document.getElementById('modalConciliar'))return;document.getElementById('modalConciliar').classList.add('hidden');}
 function _ddmm(dateStr){if(!dateStr)return '';var p=String(dateStr).split('-');if(p.length===3)return p[2].slice(0,2)+'/'+p[1];return dateStr;}
-async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var byY={};content.items.forEach(function(it){var y=Math.round(it.transform[5]);(byY[y]=byY[y]||[]).push({x:it.transform[4],s:it.str});});Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){var line=byY[y].sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
+// Agrupa texto por linha visual usando TOLERANCIA de Y, nao mais
+// Math.round(y) exato. Antes, dois textos da mesma linha (descricao num
+// <span> e o valor noutro, baseline alguns 0,X pt diferente -- comum em
+// lista com marcador/bullet) podiam cair em "linhas" de texto SEPARADAS no
+// agrupamento por inteiro exato: a descricao sozinha nao tem valor pra bater
+// o parser, o valor sozinho nao tem descricao -- o lancamento inteiro
+// sumia da leitura, sem nunca aparecer nem como "faltando" (achado com o
+// Marcius 26/11/26: total da fatura nao batia por uns R$20-40, pequeno
+// demais pra notar item por item, so pelo total declarado pelo banco).
+async function _extrairTextoPDF(file){var buf=await file.arrayBuffer();var pdf=await pdfjsLib.getDocument({data:buf}).promise;var linhas=[];for(var pg=1;pg<=pdf.numPages;pg++){var page=await pdf.getPage(pg);var content=await page.getTextContent();var itens=content.items.map(function(it){return {x:it.transform[4],y:it.transform[5],s:it.str};}).sort(function(a,b){return b.y-a.y;});var grupos=[];itens.forEach(function(it){var g=grupos.length?grupos[grupos.length-1]:null;if(g&&Math.abs(g.y-it.y)<=2){g.itens.push(it);}else{grupos.push({y:it.y,itens:[it]});}});grupos.forEach(function(g){var line=g.itens.slice().sort(function(a,b){return a.x-b.x;}).map(function(o){return o.s;}).join(' ').replace(/\s+/g,' ').trim();if(line)linhas.push(line);});}return linhas.join('\n');}
 // Leitor de fatura em Excel (.xls/.xlsx do app do banco).
 // Estrutura validada no arquivo real do Bradesco:
 //   cabecalho de secao -> col0 = "NOME DO TITULAR - 4648"
@@ -1670,7 +1679,12 @@ ext=bruto.filter(function(it){var c=String(it.cartao||'');var meu=(_meusCartoes.
 _concIgnorados=ign;_concCartoesUsados=usados;
 _renderConciliacao(ext);
 }
-function _normNome(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
+// Tira acento ANTES de filtrar caracteres -- antes "Família" virava "FAM
+// LIA" (o Í sumia e quebrava a palavra em duas, derrubando a pontuacao de
+// parecenca a toa). NFD separa a letra do acento (combining mark, faixa
+// U+0300-036F) pra poder remover so o acento sem fragmentar nada (Marcius,
+// 26/11/26 -- "Sagrada Familia" pedindo confirmacao manual sem necessidade).
+function _normNome(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
 function _simNome(a,b){a=_normNome(a);b=_normNome(b);if(!a||!b)return 0;if(a===b)return 1;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return 0.9;
 // Extrato do banco (Mercado Pago etc.) as vezes gruda as palavras sem
 // espaco: "MERCADOLIVRE", "PINDARODEIOFEST2026". O app guarda "Mercado
@@ -1713,7 +1727,14 @@ if(tr)tr.style.backgroundColor='';
 function _autoCasar(app,ext,pares){
 app.forEach(function(a,ai){if(a.usado)return;for(var ei=0;ei<ext.length;ei++){var e=ext[ei];if(e.usado)continue;if(a.data===e.data&&Math.abs(a.valor-e.valor)<=0.001){a.usado=true;e.usado=true;pares.push({ai:ai,ei:ei,auto:true,dd:0});break;}}});
 var cands=[];
-app.forEach(function(a,ai){if(a.usado)return;ext.forEach(function(e,ei){if(e.usado)return;if(Math.abs(a.valor-e.valor)>0.001)return;var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));if(sim>=0.7&&dd<=10)cands.push({ai:ai,ei:ei,dd:dd,sim:sim,score:sim*2-dd*0.01});});});
+// Banco sem coluna de data (formato "resumo por cartao", 26/11/26): o unico
+// sinal que sobra e nome+valor. Como o valor aqui ja e EXATO (acima so
+// entra quem bate 0,001), um nome com metade dos tokens batendo e tao
+// confiavel quanto "mesma data, nome qualquer" (o criterio que a 1a fase
+// ja aceita de olhos fechados pra formato com data) -- sem isso, toda
+// compra nesse formato caia pra sugestao pedindo confirmar o obvio
+// ("Sagrada Familia e Sagrada Familia mesmo?", Marcius 26/11/26).
+app.forEach(function(a,ai){if(a.usado)return;ext.forEach(function(e,ei){if(e.usado)return;if(Math.abs(a.valor-e.valor)>0.001)return;var dd=_diffDias(a.dataISO,e.data),sim=Math.max(_simNome(a.nome,e.desc),_simNome(a.orig,e.desc));var limiar=e.data?0.7:0.5;if(sim>=limiar&&dd<=10)cands.push({ai:ai,ei:ei,dd:dd,sim:sim,score:sim*2-dd*0.01});});});
 cands.sort(function(x,y){return y.score-x.score;});
 cands.forEach(function(p){if(app[p.ai].usado||ext[p.ei].usado)return;app[p.ai].usado=true;ext[p.ei].usado=true;pares.push({ai:p.ai,ei:p.ei,auto:true,dd:p.dd});});
 }
