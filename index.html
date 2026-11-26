@@ -301,7 +301,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v138';
+const APP_VERSION = 'v139';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -2334,51 +2334,45 @@ function linhaT(rot,val,cor,peq){
 return '<tr><td style="padding:3px 0;font-size:'+(peq?11:12.5)+'px;color:'+(cor||'rgba(255,255,255,0.9)')+';">'+rot+'</td>'
 +'<td style="padding:3px 0;text-align:right;font-size:'+(peq?11:12.5)+'px;font-variant-numeric:tabular-nums;color:'+(cor||'#fff')+';">'+fmt(val)+'</td></tr>';
 }
+// A CONTA, NUA E CRUA (Marcius, 26/11/26: "para com essa maldita mania de
+// querer fazer bater o 0 a 0 com as informacoes que eu te passo. Voce tem
+// que fazer a informacao nua e crua"). Aqui entra SO subtracao de numeros
+// que vieram do PDF, mais o total lancado no app. Nenhuma linha de ajuste,
+// nenhum complemento, nenhuma explicacao no meio do calculo -- qualquer
+// coisa entre o subtotal e a diferenca da a impressao de remendo pra fechar.
+// O que for interpretacao fica DEPOIS da diferenca, separado.
 html+='<div style="border-top:1px solid rgba(255,255,255,0.2);padding-top:8px;">';
 html+='<table style="width:100%;border-collapse:collapse;">';
-html+=linhaT('&#10003; Bateram com a fatura ('+st.pares.length+')',somaPares,'#a5d6a7');
-if(sug.length)html+=linhaT('&#9888; A confirmar ('+sug.length+')',somaSug,'#ffe082');
-if(sobra.length)html+=linhaT('&#128993; S&oacute; no app, n&atilde;o veio na fatura ('+sobra.length+')',somaSobra,'#ffcc80');
-if(falta.length)html+=linhaT('&#128308; S&oacute; na fatura, falta no app ('+falta.length+')',somaFalta,'#ef9a9a');
-html+='<tr><td colspan="2" style="border-top:1px solid rgba(255,255,255,0.25);padding-top:4px;"></td></tr>';
-html+=linhaT('<b>Total no app</b>',totApp);
-// Conta do lado do banco aberta, do jeito que o Marcius confere: total da
-// fatura menos os cartoes dos outros. Fica auditavel linha a linha em vez
-// de aparecer um total pronto que ele tem que acreditar.
 if(_concBaseBanco&&_concBaseBanco.modo==='subtracao'){
-html+=linhaT('Total da fatura (todos os cart&otilde;es)',_concBaseBanco.total,'rgba(255,255,255,0.75)',true);
+html+=linhaT('Total da fatura (todos os cart&otilde;es)',_concBaseBanco.total);
 Object.keys(_concTotaisCartao||{}).forEach(function(cc){
 if(!(_meusCartoes&&_meusCartoes.length)||_meusCartoes.indexOf(String(cc))>=0)return;
 var nm=(_concNomesCartao&&_concNomesCartao[cc])?' ('+_escHtml(String(_concNomesCartao[cc]).split(' ')[0])+')':'';
-html+=linhaT('&minus; cart&atilde;o '+cc+nm,-_concTotaisCartao[cc],'rgba(255,255,255,0.75)',true);
+html+=linhaT('&minus; cart&atilde;o '+cc+nm,-_concTotaisCartao[cc]);
 });
 }
-html+=linhaT('<b>Fatura dos seus cart&otilde;es</b>',totExt);
-// Cartao SEU que o banco cobra mas nao lista NENHUM lancamento (caso do
-// 4648: declara R$4,56 de IOF e escreve "voce ainda nao possui
-// lancamentos"). O valor ja entra no total declarado acima, mas antes isso
-// passava calado -- a checagem por cartao pula quem nao tem linha, e a
-// tarja "Seus cartoes" so mostra cartao COM lancamento no extrato. O
-// Marcius perguntou "cade ele nos alertas?" e nao havia alerta nenhum.
-if(_concTotaisCartao){
-Object.keys(_concTotaisCartao).forEach(function(cc){
-if(_meusCartoes&&_meusCartoes.length&&_meusCartoes.indexOf(String(cc))<0)return;
-var decl=_concTotaisCartao[cc];if(!(decl>0.005))return;
-var temLinha=st.ext.some(function(e){return String(e.cartao)===String(cc);});
-if(temLinha)return;
-html+=linhaT('&#8627; cart&atilde;o '+cc+': cobrado sem listar lan&ccedil;amento',decl,'#ffcc80',true);
-});
-}
-if(Math.abs(arred)>0.001)html+=linhaT('Arredondamento de parcelas',arred,'rgba(255,255,255,0.6)',true);
+html+=linhaT('<b>= Fatura dos seus cart&otilde;es</b>',totExt);
+html+=linhaT('<b>Lan&ccedil;ado no app</b>',totApp);
 html+='</table>';
-html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;margin-top:4px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
-// Quando a sobra do app explica EXATAMENTE o que o banco cobrou sem listar,
-// diz isso na cara: esses itens nao sao erro do Marcius, sao linha que o
-// PDF do banco nao imprimiu (caso real nov/26: os 5 itens somavam 477,43,
-// o mesmo que faltava pra fechar o total declarado).
-if(_concNaoDetalhado>0.005&&sobra.length&&Math.abs(somaSobra-_concNaoDetalhado)<=0.05){
-html+='<div style="background:rgba(255,255,255,0.12);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:11px;line-height:1.45;">&#128161; Os '+sobra.length+' itens “s&oacute; no app” somam '+fmt(somaSobra)+' &mdash; exatamente o que o banco cobrou e <b>n&atilde;o listou</b> no PDF. Seus lan&ccedil;amentos est&atilde;o certos; o extrato e que nao imprimiu essas linhas.</div>';
+html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;margin-top:4px;"><span>Diferen&ccedil;a</span><span>'+fmt(difReal)+'</span></div>';
+if(Math.abs(difReal)>0.005){
+html+='<div style="background:rgba(255,255,255,0.14);border-radius:6px;padding:7px 9px;margin-top:7px;font-size:12px;line-height:1.5;">'
++(difReal>0?'A fatura tem <b>'+fmt(difReal)+'</b> a mais do que o app. Que gasto &eacute; esse?':'O app tem <b>'+fmt(-difReal)+'</b> a mais do que a fatura. Que gasto &eacute; esse?')
++'</div>';
 }
+// Detalhamento DEPOIS da diferenca: ajuda a achar o que nao bateu, mas nao
+// participa do calculo acima.
+html+='<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.15);">';
+html+='<div style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;color:rgba(255,255,255,0.55);font-weight:700;margin-bottom:4px;">Detalhamento</div>';
+html+='<table style="width:100%;border-collapse:collapse;">';
+html+=linhaT('&#10003; Bateram com a fatura ('+st.pares.length+')',somaPares,'#a5d6a7',true);
+if(sug.length)html+=linhaT('&#9888; A confirmar ('+sug.length+')',somaSug,'#ffe082',true);
+if(sobra.length)html+=linhaT('&#128993; S&oacute; no app ('+sobra.length+')',somaSobra,'#ffcc80',true);
+if(falta.length)html+=linhaT('&#128308; S&oacute; na fatura ('+falta.length+')',somaFalta,'#ef9a9a',true);
+html+=linhaT('Linhas impressas no PDF',st.ext.reduce(function(s,e){return s+e.valor;},0),'rgba(255,255,255,0.6)',true);
+if(_concNaoDetalhado>0.005)html+=linhaT('Cobrado e n&atilde;o impresso no PDF',_concNaoDetalhado,'rgba(255,255,255,0.6)',true);
+if(Math.abs(arred)>0.001)html+=linhaT('Arredondamento de parcelas',arred,'rgba(255,255,255,0.6)',true);
+html+='</table></div>';
 html+='</div></div>';
 // Barra de progresso: sem isso nao dava pra ver de cara quanto ja avancou
 // numa fatura longa -- so o texto pequeno acima, sem hierarquia visual.
