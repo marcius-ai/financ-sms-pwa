@@ -301,7 +301,7 @@ table.rel-t td.n { text-align:right; white-space:nowrap; font-variant-numeric:ta
 <div id="toast"></div>
 <script>
 const API = 'https://web-production-09718.up.railway.app';
-const APP_VERSION = 'v136';
+const APP_VERSION = 'v137';
 try{if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';}catch(e){}
 let gastos = [], indexAtual = 0, gastoSelecionadoId = null, gastoSelecionadoNomeOrig = null, _histData = [], _faturasCiclos = [];
 const SIMBOLOS_MOEDA = {BRL:'R$',USD:'US$',EUR:'EU',GBP:'GBP',ARS:'AR$',CLP:'CL$',UYU:'UY$',MXN:'MX$'};
@@ -2279,7 +2279,17 @@ if(_concConferencia){
 html+='<div style="background:'+(_concConferencia.ok?'#1b5e20':'#b71c1c')+';border-radius:10px;padding:8px 10px;margin-bottom:10px;color:#fff;font-size:11px;text-align:center;">'+(_concConferencia.ok?'&#10003; ':'&#9888; ')+_escHtml(_concConferencia.msg)+'</div>';
 }
 if(_concCartoesUsados&&_concCartoesUsados.length){
-html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;margin-bottom:10px;color:rgba(255,255,255,0.8);font-size:11px;text-align:center;">Seus cart&otilde;es: <b>'+_concCartoesUsados.map(function(c){return '****'+c;}).join(' ')+'</b>'+(_concIgnorados>0?' &bull; '+_concIgnorados+' de outros cart&otilde;es ignorado'+(_concIgnorados>1?'s':''):'')+'</div>';
+// Alem dos cartoes COM lancamento no extrato, mostra tambem os seus que o
+// banco cobrou sem listar nada -- senao um cartao desses (4648) sumia da
+// tarja e dava a impressao de estar fora da conta, quando na verdade o
+// valor dele entra pelo total declarado.
+var _ccSemLinha=[];
+if(_concTotaisCartao){Object.keys(_concTotaisCartao).forEach(function(cc){
+if(_meusCartoes&&_meusCartoes.length&&_meusCartoes.indexOf(String(cc))<0)return;
+if(!(_concTotaisCartao[cc]>0.005))return;
+if(_concCartoesUsados.indexOf(String(cc))>=0)return;
+_ccSemLinha.push(String(cc));});}
+html+='<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;margin-bottom:10px;color:rgba(255,255,255,0.8);font-size:11px;text-align:center;">Seus cart&otilde;es: <b>'+_concCartoesUsados.map(function(c){return '****'+c;}).join(' ')+'</b>'+(_ccSemLinha.length?' <b>'+_ccSemLinha.map(function(c){return '****'+c;}).join(' ')+'</b> <span style="color:#ffcc80;">(cobrado sem lan&ccedil;amento)</span>':'')+(_concIgnorados>0?' &bull; '+_concIgnorados+' de outros cart&otilde;es ignorado'+(_concIgnorados>1?'s':''):'')+'</div>';
 }
 html+='<div style="background:'+(okZero?'#1b5e20':'rgba(255,255,255,0.1)')+';border-radius:12px;padding:12px;margin-bottom:10px;color:#fff;">';
 // A conciliacao PRECISA comparar o bruto (pessoal+empresa) contra o banco --
@@ -2323,6 +2333,21 @@ html+=linhaT('Linhas impressas na fatura',totExt-_concNaoDetalhado,'rgba(255,255
 html+=linhaT('+ cobrado pelo banco, n&atilde;o impresso',_concNaoDetalhado,'rgba(255,255,255,0.75)',true);
 }
 html+=linhaT('<b>Total declarado pelo banco</b>',totExt);
+// Cartao SEU que o banco cobra mas nao lista NENHUM lancamento (caso do
+// 4648: declara R$4,56 de IOF e escreve "voce ainda nao possui
+// lancamentos"). O valor ja entra no total declarado acima, mas antes isso
+// passava calado -- a checagem por cartao pula quem nao tem linha, e a
+// tarja "Seus cartoes" so mostra cartao COM lancamento no extrato. O
+// Marcius perguntou "cade ele nos alertas?" e nao havia alerta nenhum.
+if(_concTotaisCartao){
+Object.keys(_concTotaisCartao).forEach(function(cc){
+if(_meusCartoes&&_meusCartoes.length&&_meusCartoes.indexOf(String(cc))<0)return;
+var decl=_concTotaisCartao[cc];if(!(decl>0.005))return;
+var temLinha=st.ext.some(function(e){return String(e.cartao)===String(cc);});
+if(temLinha)return;
+html+=linhaT('&#8627; cart&atilde;o '+cc+': cobrado sem listar lan&ccedil;amento',decl,'#ffcc80',true);
+});
+}
 if(Math.abs(arred)>0.001)html+=linhaT('Arredondamento de parcelas',arred,'rgba(255,255,255,0.6)',true);
 html+='</table>';
 html+='<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:1px solid rgba(255,255,255,0.25);padding-top:6px;margin-top:4px;"><span>Diferenca real</span><span>'+fmt(difReal)+'</span></div>';
